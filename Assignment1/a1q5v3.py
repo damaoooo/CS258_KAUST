@@ -110,10 +110,10 @@ class System:
         self.enable_prio = enable_prio
     
     def get_min_avail_time(self):
-        return min([(s.get_min_avail_time(), i) for i, s in enumerate(self.queues)], key=lambda x: x[1])
+        return min([(q.get_min_avail_time(), i) for i, q in enumerate(self.queues)], key=lambda x: x[1])
     
     def get_max_avail_time(self):
-        return max([(s.get_max_avail_time(), i) for i, s in enumerate(self.queues)], key=lambda x: x[1])
+        return max([(q.get_max_avail_time(), i) for i, q in enumerate(self.queues)], key=lambda x: x[1])
     
     def drain(self):
         for queue in self.queues:
@@ -122,44 +122,37 @@ class System:
         for queue in self.queues:
             queue.run(stop_time)
     
-    def simulate_single_server(self, requests: list[Request]):
-        for req in requests:
-            self.servers[0].run(req.arrival_time)
-            self.servers[0].put_request(req)
-        self.run_to_complete()
-    
     def simulate_sq(self, requests: list[Request]):
         # shortest-queue algorithm
         for req in requests:
-            for server in self.servers:
-                server.run(req.arrival_time)
+            for queue in self.queues:
+                queue.run(req.arrival_time)
             
-            server_idx = min([(idx, server.get_num_pending_requests()) \
-                               for idx, server in enumerate(self.servers)], key=lambda x: x[1])[0]
-            print(server_idx)
-            self.servers[server_idx].put_request(req)
-        self.run_to_complete()
+            queue_idx, _ = min([(i, q.get_num_pending_requests()) \
+                               for i, q in enumerate(self.queues)], key=lambda x: x[1])
+            self.queues[queue_idx].put_request(req, self.enable_prio)
+        self.drain()
 
     def simulate_rr(self, requests: list[Request]):
         # round-robin algorithm
-        server_idx = 0
+        queue_idx = 0
         for req in requests:
-            for server in self.servers:
-                server.run(req.arrival_time)
+            for queue in self.queues:
+                queue.run(req.arrival_time)
 
-            print(server_idx)
-            self.servers[server_idx].put_request(req)
-            server_idx = (server_idx + 1) % len(self.servers)
-        self.run_to_complete()
-    
+            self.queues[queue_idx].put_request(req, self.enable_prio)
+            queue_idx = (queue_idx + 1) % len(self.queues)
+        self.drain()
+
     def summary(self):
-        for idx, server in enumerate(self.servers):
-            print("idx=%s, clock=%s, busy=%s" % (idx, server.clock, server.busy_clock))
-            print(server.complete_queue)
+        for i_q, q in enumerate(self.queues):
+            for i_s, s in enumerate(q.servers):
+                print("idx=%s/%s, clock=%s, busy=%s" % (i_q, i_s, s.clock, s.busy_clock))
+                print(s.complete_queue)
 
 
-cluster = Cluster(3)
+system = System(1, 3)
 reqs = [Request(1, 5), Request(2, 5), Request(100, 5), Request(102, 5)]
-cluster.simulate_rr(reqs)
-cluster.summary()
+system.simulate_rr(reqs)
+system.summary()
 
