@@ -1,187 +1,242 @@
+# Suggest to use Python 3.10 or newer
+
 import numpy as np
+import warnings
+import copy
+import json
+from collections import deque
 from dataclasses import dataclass
-from typing import List, Union, Callable
+from multiprocessing import Pool
 from enum import Enum
 
-class ServiceType(Enum):
-    Fast = 1
-    Slow = 2
+N_REQUESTS = 10000
+MAX_N_SERVERS = 300
+
+def DEBUG(*args, **kwargs):
+    # print(*args, **kwargs)
+    pass
+
+def TRACE(*args, **kwargs):
+    # print(*args, **kwargs)
+    pass
+
+class RequestType(Enum):
+    Short = 0
+    Long = 1
 
 @dataclass
-class Client:
+class Request:
     arrival_time: int = 0
-    service_time: int = 0
-    service_type: ServiceType = ServiceType.Fast
-    waiting_time: int = 0
-    service_start_time: int = 0
-    service_end_time: int = 0
+    proc_time: int = 0
+    type: RequestType = RequestType.Short
+    exec_start_time: int = 0
+    exec_stop_time: int = 0
+    response_time: int = 0
 
-SingleQueue = List[Client]
-
-robin = 0
-
-def shortest_queue(queue: List[SingleQueue]) -> int:
-    queue_length = [len(i) for i in queue]
-    return np.argmin(queue_length)
-
-def round_robin_queue(queue: List[SingleQueue]) -> int:
-    global robin
-    robin += 1
-    return robin % len(queue)
+class Server:
+    def __init__(self, sid: int, qid: int):
+        self.sid = sid
+        self.qid = qid
+        self.clock = 0
+        self.busy_clock = 0
+        self.current_request: Request = None
+        self.complete_queue: list[Request] = []
+    
+    def is_busy(self):
+        return self.current_request != None
+    
+    def get_avail_time(self):
+        if self.is_busy():
+            return self.current_request.exec_stop_time
+        else:
+            return self.clock
+    
+    def process_request(self, request: Request):
+        assert not self.is_busy()
+        request.exec_start_time = self.clock
+        request.exec_stop_time = self.clock + request.proc_time
+        request.response_time = request.exec_start_time - request.arrival_time
+        self.current_request = request
+        
+    def run(self, to_clock: int):
+        TRACE("[%s/%s] (Trying %s -> %s)" % (self.qid, self.sid, self.clock, to_clock))
+        assert to_clock >= self.clock
+        self.clock = to_clock
+        if self.is_busy() and to_clock >= self.current_request.exec_stop_time:
+            self.busy_clock += self.current_request.proc_time
+            self.complete_queue.append(self.current_request)
+            self.current_request = None
+            DEBUG("[%s/%s] Complete %s" % (self.qid, self.sid, self.complete_queue[-1]))
+        TRACE("[%s/%s] (Finish -> %s)" % (self.qid, self.sid, self.clock))
 
 class Queue:
-    def __init__(self, size: int = 1000, server_num: int = 1, queue_num: int = 1):
-        self.size = size
-        self.clients: SingleQueue = []
+    def __init__(self, qid: int, num_servers: int):
+        self.qid = qid
+        self.servers = [Server(i, qid) for i in range(num_servers)]
+        self.work_queue: deque[Request] = deque()
+    
+    def get_num_busy_servers(self):
+        return sum([1 if s.is_busy() else 0 for s in self.servers])
         
-        self.queue: List[SingleQueue] = [[] for _ in range(queue_num)]
-        
-        self.server_num = server_num
-        self._fill_client()
-        
-    def _generate_service_time(self):
-            if np.random.rand() < 0.9:
-                service_type = ServiceType.Fast
-            else:
-                service_type = ServiceType.Slow
-                
-            if service_type == ServiceType.Fast:
-                return np.random.randint(low=3, high=20), service_type
-            else:
-                return np.random.randint(low=200, high=1000), service_type
-        
-    def _fill_client(self):
-        arrival_time_interval = np.random.poisson(lam=5, size=self.size-1)
-        service_time, service_type = self._generate_service_time()
-        self.clients.append(Client(arrival_time=0, service_time=service_time, service_type=service_type))
-        
-        for i in range(self.size-1):
-            arrival_time = np.cumsum(arrival_time_interval)[i]
-            service_time, service_type = self._generate_service_time()
-            self.clients.append(Client(arrival_time=arrival_time, service_time=service_time, service_type=service_type))
-            
-    def _start_serve_one_server(self):
-        self.clients: SingleQueue
-        for i in range(len(self.clients)):
-            if i == 0:
-                self.clients[i].service_start_time = self.clients[i].arrival_time
-                self.clients[i].service_end_time = self.clients[i].service_start_time + self.clients[i].service_time
-                self.clients[i].waiting_time = 0
-            else:
-                self.clients[i].service_start_time = max(self.clients[i].arrival_time, self.clients[i-1].service_end_time)
-                self.clients[i].service_end_time = self.clients[i].service_start_time + self.clients[i].service_time
-                self.clients[i].waiting_time = self.clients[i].service_start_time - self.clients[i].arrival_time
-                
-    def _start_serve_multi_server(self):
-        server_buffer: List[Client] = []
-        self.clients: SingleQueue
-        for i in range(len(self.clients)):
-            
-            if server_buffer:
-                server_buffer.sort(key=lambda x: x.service_end_time)
-                pop_list = [j for j in range(len(server_buffer)) if server_buffer[j].service_end_time < self.clients[i].arrival_time]
-                pop_list.sort(reverse=True)
-                for j in pop_list:
-                    server_buffer.pop(j)
-            
-            if len(server_buffer) < self.server_num:
-                self.clients[i].service_start_time = self.clients[i].arrival_time
-                self.clients[i].service_end_time = self.clients[i].service_start_time + self.clients[i].service_time
-                self.clients[i].waiting_time = 0
-                server_buffer.append(self.clients[i])
-            else:
-                # Find the server that will be available first
-                server_buffer.sort(key=lambda x: x.service_end_time)
-                self.clients[i].service_start_time = server_buffer[0].service_end_time
-                self.clients[i].service_end_time = self.clients[i].service_start_time + self.clients[i].service_time
-                self.clients[i].waiting_time = self.clients[i].service_start_time - self.clients[i].arrival_time
-                server_buffer[0] = self.clients[i]    
-                
-    def _start_serve_single_server_with_multiple_queue(self, queue_algorithm: Callable[[List[SingleQueue]], int]):
-        wait_list = list(range(len(self.clients)))
-        # while there are still clients in the wait list and there are still clients in the queue
-        while wait_list and np.sum([len(i) for i in self.queue]) > 0:
-            # Find the shortest queue
-            shortest_queue_index = queue_algorithm(self.queue)
-            # If the shortest queue is empty, serve the first client in the wait list
-            if not self.queue[shortest_queue_index]:
-                self.queue[shortest_queue_index].append(self.clients[wait_list[0]])
-                wait_list.pop(0)
+    def get_min_avail_time(self):
+        return min([(s.get_avail_time(), i) for i, s in enumerate(self.servers)], key=lambda x: x[0])
+    
+    def get_max_avail_time(self):
+        return max([(s.get_avail_time(), i) for i, s in enumerate(self.servers)], key=lambda x: x[0])
+    
+    def put_request(self, request: Request):
+        self.work_queue.append(request)
+        DEBUG("[%s] # of pending requests: %s, # of busy servers: %s, +%s"
+              % (self.qid, len(self.work_queue), self.get_num_busy_servers(), request))
+    
+    def _run_all_server(self, to_clock: int):
+        for server in self.servers:
+            server.run(to_clock)
 
-        
-
-                
-    def start_serve(self, sort_function: Callable[[SingleQueue], Union[Client, None]] = None):
-        if len(self.queue) == 1:
-            if self.server_num == 1:
-                self._start_serve_one_server()
+    def run(self, to_clock: int):
+        DEBUG("[%s] (Trying -> %s)" % (self.qid, to_clock))
+        while True:
+            if len(self.work_queue) == 0:
+                self._run_all_server(to_clock)
+                break
             else:
-                self._start_serve_multi_server()     
-        else:
-            if self.server_num == 1:
-                self._start_serve_single_server_with_multiple_queue(queue_algorithm=sort_function)
-                
-    def get_average_waiting_time(self):
-        return np.mean([i.waiting_time for i in self.clients])
+                min_avail_time, server_idx = self.get_min_avail_time()
+                TRACE("[%s] Min avail time: %s" % (self.qid, min_avail_time))
+                if min_avail_time <= to_clock:
+                    self._run_all_server(min_avail_time)
+                    request = self.work_queue.popleft()
+                    self.servers[server_idx].process_request(request)
+                    DEBUG("[%s] Dispatch to [%s/%s]: %s"
+                          % (self.qid, self.qid, server_idx, request))
+                else:
+                    self._run_all_server(to_clock)
+                    break
+        DEBUG("[%s] (Finish -> %s)" % (self.qid, to_clock))
     
-    def get_std_waiting_time(self):
-        return np.std([i.waiting_time for i in self.clients])
+    def drain(self):
+        DEBUG("[%s] Start draining" % (self.qid))
+        while len(self.work_queue) + self.get_num_busy_servers() > 0:
+            self.run(self.get_max_avail_time()[0])
+        DEBUG("[%s] Finish draining" % (self.qid))
+
+class System:
+    def __init__(self):
+        self.queues: list[Queue] = []
     
-    def get_server_utilization(self):
-        return np.sum([i.service_time for i in self.clients]) / np.max([i.service_end_time for i in self.clients])
+    def get_min_avail_time(self):
+        return min([(q.get_min_avail_time()[0], i) for i, q in enumerate(self.queues)], key=lambda x: x[0])
     
-    def get_response_time_mean(self):
-        return np.mean([(i.service_end_time - i.arrival_time) for i in self.clients])
+    def get_max_avail_time(self):
+        return max([(q.get_max_avail_time()[0], i) for i, q in enumerate(self.queues)], key=lambda x: x[0])
     
-    def get_response_time_std(self):
-        return np.std([(i.service_end_time - i.arrival_time) for i in self.clients])
+    def drain(self):
+        DEBUG("[SYS] Start draining")
+        for queue in self.queues:
+            queue.drain()
+        stop_time, _ = self.get_max_avail_time()
+        DEBUG("[SYS] Sync to (%s)" % stop_time)
+        for queue in self.queues:
+            queue.run(stop_time)
     
-    def get_slow_response_time_mean_and_std(self):
-        return np.mean([(i.service_end_time - i.arrival_time) for i in self.clients if i.service_type == ServiceType.Slow]), np.std([(i.service_end_time - i.arrival_time) for i in self.clients if i.service_type == ServiceType.Slow])
+    def simulate_sq(self, requests: list[Request], num_queues: int, num_servers_per_queue: int):
+        # shortest-queue algorithm
+        self.queues = [Queue(i, num_servers_per_queue) for i in range(num_queues)]
+        for req in requests:
+            for queue in self.queues:
+                queue.run(req.arrival_time)
+            
+            queue_idx, _ = min([(i, len(q.work_queue) + q.get_num_busy_servers()) \
+                               for i, q in enumerate(self.queues)], key=lambda x: x[1])
+            self.queues[queue_idx].put_request(req)
+        self.drain()
+        return self.summary()
+
+    def simulate_rr(self, requests: list[Request], num_queues: int, num_servers_per_queue: int):
+        # round-robin algorithm
+        self.queues = [Queue(i, num_servers_per_queue) for i in range(num_queues)]
+        queue_idx = 0
+        for req in requests:
+            for queue in self.queues:
+                queue.run(req.arrival_time)
+            self.queues[queue_idx].put_request(req)
+            queue_idx = (queue_idx + 1) % len(self.queues)
+        self.drain()
+        return self.summary()
     
-    def get_fast_response_time_mean_and_std(self):
-        return np.mean([(i.service_end_time - i.arrival_time) for i in self.clients if i.service_type == ServiceType.Fast]), np.std([(i.service_end_time - i.arrival_time) for i in self.clients if i.service_type == ServiceType.Fast])
-    
+    def simulate_prio(self, requests: list[Request], num_servers_short_req: int, num_servers_long_req: int):
+        # round-robin algorithm
+        self.queues = [Queue(0, num_servers_short_req), Queue(1, num_servers_long_req)]
+        for req in requests:
+            for queue in self.queues:
+                queue.run(req.arrival_time)
+            self.queues[0 if req.type == RequestType.Short else 1].put_request(req)
+        self.drain()
+        return self.summary()
+
     def summary(self):
-        print(f"Waiting time mean and std: {self.get_average_waiting_time()}, {self.get_std_waiting_time()}")
-        print(f"Server utilization: {self.get_server_utilization()}")
-        print(f"Response time mean and std: {self.get_response_time_mean()}, {self.get_response_time_std()}")
-        print(f"Slow response time mean and std: {self.get_slow_response_time_mean_and_std()}")
-        print(f"Fast response time mean and std: {self.get_fast_response_time_mean_and_std()}")
-    
-    def __repr__(self) -> str:
-        result = ""
-        for i in self.clients:
-            result += str(i)
-            result += '\n'
-        return result
+        requests: list[Request] = []
+        utilizations: list[float] = []
+        for q in self.queues:
+            for s in q.servers:
+                requests += s.complete_queue
+            utilizations.append(np.mean([s.busy_clock / s.clock for s in q.servers]))
+        
+        rsp_time = [r.response_time for r in requests]
+        rsp_time_long = [r.response_time for r in requests if r.type == RequestType.Long]
+        rsp_time_short = [r.response_time for r in requests if r.type == RequestType.Short]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            metrics = {
+                "rsp_time_mean": (np.mean(rsp_time), np.mean(rsp_time_short), np.mean(rsp_time_long)),
+                "rsp_time_stddev": (np.std(rsp_time), np.std(rsp_time_short), np.std(rsp_time_long)),
+                "sys_util": np.mean(utilizations),
+                "queue_util": utilizations
+            }
+            print("[SYS] %s" % metrics)
+            return metrics
 
+def generate_requests(num: int):
+    requests: list[Request] = []
+    arrival_time_intervals = np.random.poisson(lam=5, size=num-1)
+    arrival_times = [0] + list(np.cumsum(arrival_time_intervals))
+    for i in range(num):
+        if np.random.rand() < 0.9:
+            req_type = RequestType.Short
+            proc_time = np.random.randint(low=3, high=20)
+        else:
+            req_type = RequestType.Long
+            proc_time = np.random.randint(low=200, high=1000)
+        requests.append(Request(arrival_times[i], proc_time, req_type))
+    return requests
 
-if __name__ == "__main__":
-    np.random.seed(6)
+requests = generate_requests(N_REQUESTS)
+
+def simulate(n: int):
+    reqs = copy.deepcopy(requests)
+    system = System()
     
-    event_size = 1000
-    
-    print("-"*50)
-    
-    print("Single server, single queue")
-    q = Queue(event_size, server_num=1, queue_num=1)
-    q.start_serve()
-    q.summary()
-    
-    print("-"*50)
-    
-    print("Finding Necessary number of servers")
-    for i in range(event_size):
-        q = Queue(event_size, server_num=i, queue_num=1)
-        q.start_serve()
-        mean, std = q.get_average_waiting_time(), q.get_std_waiting_time()
-        if mean < 30 and std < 0.1:
-            print(f"Number of servers: {i}")
-            break
-    
-    print("-"*50)
-    
-    print("Single server, multiple queue, shortest queue first")
-    q = Queue(event_size, server_num=1, queue_num=2)
-    q.start_serve(sort_function=shortest_queue)
+    return {
+        "sqms": system.simulate_rr(reqs, 1, n),
+        "mqms_sq": system.simulate_sq(reqs, n, 1),
+        "mqms_rr": system.simulate_rr(reqs, n, 1),
+        "prio_short": system.simulate_prio(reqs, n, 50),
+        "prio_long": system.simulate_prio(reqs, 50, n),
+    }
+
+def sol_b_c_d_e():
+    n_servers = [i for i in range(1, MAX_N_SERVERS)]
+    with Pool() as p:
+        results = p.map(simulate, n_servers)
+        with open("results.json", "w") as f:
+            f.write(json.dumps(results))
+
+def verify():
+    reqs = copy.deepcopy(requests)
+    system = System()
+    system.simulate_rr(reqs, 1, 25) # q5.c
+    system.simulate_sq(reqs, 28, 1) # q5.d
+    system.simulate_rr(reqs, 192, 1) # q5.e
+    system.simulate_prio(reqs, 3, 13) # q5.f
+
+# sol_b_c_d_e()
+verify()

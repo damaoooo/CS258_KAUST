@@ -63,3 +63,42 @@ algorithm poisson random number (Knuth):
 When mean value $\lambda$ is very big, the $e^{-\lambda}$ is close to 0, when $\lambda$ is big enough, no matter how big the $\lambda$ is, the L will not change much.
 
 We write and give out our code in the attachment `a1q4.cpp`
+
+## Question 5
+
+### a.
+
+![Title](fig0.pdf)
+
+### b./c./d./e.
+
+![Title](fig1.pdf)
+![Title](fig1a.pdf)
+![Title](fig2.pdf)
+![Title](fig2a.pdf)
+![Title](fig3.pdf)
+
+**c.**
+
+24 Servers. Utilization: ~55%
+
+**d.**
+
+27 Servers. Utilization: ~49%
+
+**e.**
+
+192 Servers. Utilization: ~7%
+
+### f.
+
+![Title](fig4.pdf)
+
+3 Servers for Short Requests. Utilization: ~65%
+
+13 Servers for Long Requests. Utilization: ~88%
+
+### g.
+
+f scheme: relatively easy to achieve performance goal if percentages of each type of workloads are fixed
+c, d scheme: could provide good performance compared to e scheme
