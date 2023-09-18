@@ -1,5 +1,7 @@
 # CS 258 Assignment 1
 
+<center>Tongzhou Gu, Li Zhou</center>
+
 ## Question 1
 
 In quick sort, all the data have to be load into the memory, then there will be a base data been selected and compared with the rest of the data, other data will switch position with the base data. Since the CPU cache size, CPU cache schedule algorithm have an impact on the performance, to simply the problem, we don't consider it here.
@@ -68,15 +70,30 @@ We write and give out our code in the attachment `a1q4.cpp`
 
 ### a.
 
-![Title](fig0.pdf)
+![image-20230918033809878](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918033809878.png)
 
-### b./c./d./e.
+![image-20230918033037001](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918033037001.png)
 
-![Title](fig1.pdf)
-![Title](fig1a.pdf)
-![Title](fig2.pdf)
-![Title](fig2a.pdf)
-![Title](fig3.pdf)
+### Figures for b./c./d./e.
+
+![image-20230918034221551](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034221551.png)
+
+![image-20230918034416469](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034416469.png)
+![image-20230918034431806](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034431806.png)
+![image-20230918034443087](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034443087.png)
+![image-20230918034454627](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034454627.png)
+
+**b.**
+
+Here we set there are 10000 requests.
+
+The average response time is 331003.5ms the standard deviation of response time is 191682.3ms
+
+For the slow requests, the average and std of response time is 328439.1ms and 190182.9ms
+
+For the fast requests, the average and std of response time is 331293.5ms and 191849.3ms
+
+The average utilization of the server is 100%
 
 **c.**
 
@@ -92,7 +109,9 @@ We write and give out our code in the attachment `a1q4.cpp`
 
 ### f.
 
-![Title](fig4.pdf)
+![image-20230918034611831](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034611831.png)
+
+![image-20230918034649309](C:\Users\damao\SynologyDrive\研二上作业\CS 258 System Architecture and Performance\CS258_KAUST\Assignment1\CS 258 Assignment 1.assets\image-20230918034649309.png)
 
 3 Servers for Short Requests. Utilization: ~65%
 
