@@ -30,7 +30,7 @@ int possion(int mean) {
 }
 
 int main(){
-    
+    srand(get_time_ms());
     cout << "Please input how many numbers you want to generate(int):";
     int n = 1000;
     cin >> n;
@@ -38,6 +38,5 @@ int main(){
     cout << "Please input the mean of the possion distribution(int):";
     cin >> mean;
     for(int i = 0; i < n; i++)
-        srand(get_time_ms());
         cout << possion(mean) << ",";
 }

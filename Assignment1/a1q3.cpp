@@ -488,11 +488,9 @@ int main()
         cout << "Will use small number algorithm" << endl;
         unsigned long n = stoul(bigInt.to_string_value(), NULL, 10);
         cout << n << endl;
-        for (int i = 0; i < 100; i++)
-        {
-            unsigned int result = uniform_random(n);
-            cout << "Random Number: " << result << endl;
-        }
+
+        unsigned int result = uniform_random(n);
+        cout << "Random Number: " << result << endl;
     }
     return 0;
 }
