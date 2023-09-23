@@ -2,35 +2,37 @@
 
 
 
-Q1:
+## Q1
 
-a has  100/8 = 12.5 GB/s,  128/12.5=10.24 ns 
+**For Device A:**
 
-a send a message of 128 Bytes  needs 5microsecond + 10.24ns  =5012ns
+$100\mathrm{Gb/s} = 12.5\mathrm{GB/s}$
 
-Network thourghtput = 128/5012=0.0255GB/s 
+Transmission Latency: $\frac{128\mathrm{B}}{12.5\mathrm{GB/s}}=10.24ns$
 
-b has bandwidth 125/8=15.625 GB/s , 128/15.625=8.192 ns
+Total Latency: $10.24ns+5ms=5010.24ns$
 
-b send a message of 128 Bytes  needs  6 microsecond + 8.192ns  =6008 ns
+**For Device B:**
 
-Network thourghtput = 128/6008=0.0213GB/s
+$125\mathrm{Gb/s} = 15.625\mathrm{GB/s}$
 
-I use b, because it has better bandwidth.
+Transmission Latency: $\frac{128\mathrm{B}}{15.625\mathrm{GB/s}}=8.192ns$
 
-Q2
+Total Latency: $8.192\mathrm{ns}+6\mathrm{ms}=6008.192\mathrm{ns}$
 
-The critical path in this pipeline is the longest sequence of stages, which in this case is from "Instruction decode" to "Execution unit," with a total time of 
+Thus, **Device B is better**, because its total latency is smaller.
 
-400 + 500 + 400 = 1700ps
+## Q2
 
-To choose a good frequency for the processor, we want to ensure that the critical path can be completed within one clock cycle. Let's calculate the frequency (F) using the formula:
+We could build a 5-stage pipelined processor. In this case, the latency is determined by the component took the longest time.
 
-F = 1 / Clock cycle time
+We noticed `Operand fetch` may become the most time-consuming stage, which took up to 500ps if fetching an operand from the cache.
 
-F = 1 / 1700 picoseconds F ≈ 0.588 GHz
+However, for the processor, it is much more frequent to operate on registers compared to caches. Thus, we could let `Operand fetch from cache` take 2 cycles to complete. So, right now, `Instruction decode` and `Execution unit` determine the processing frequency, which is
 
-Q4:
+$f = \frac{1}{400\mathrm{ps}} = 2.5\mathrm{GHz}$
+
+## Q4
 
 ld f1  1cycle 
 
