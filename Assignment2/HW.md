@@ -20,7 +20,7 @@ Transmission Latency: $\frac{128\mathrm{B}}{15.625\mathrm{GB/s}}=8.192ns$
 
 Total Latency: $8.192\mathrm{ns}+6\mathrm{ms}=6008.192\mathrm{ns}$
 
-Thus, **Device B is better**, because its total latency is smaller.
+Thus, **Device A is better**, because its total latency is smaller.
 
 ## Q2
 
