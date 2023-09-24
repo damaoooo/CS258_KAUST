@@ -32,6 +32,27 @@ However, for the processor, it is much more frequent to operate on registers com
 
 $f = \frac{1}{400\mathrm{ps}} = 2.5\mathrm{GHz}$
 
+## Q3
+
+Since the webserver speed most of the time on waiting connection if the webserver is idle. Here we simulate this scenario.
+
+1. We measure the time starting at the server start
+2. We generate 1000 requests in POST method to avoid cache.
+3. We measure the time when the server finished all the requests and quit.
+4. We manually set a time counter to compare the running time of the server with/without profiler.
+
+The result of default output is shown in `q3_output.txt`, and the svg is shown below
+
+![q3](q3.svg)
+
+From the text result, it's not clear about the invoking relationship. But in the flame graph, it's more clear. There's the result analysis
+
+1. The overhead time (socket initial time) is trivial, which is 0.15% of the total time.
+2. The server spend 20% of the time on `select` function, which is used to wait for the connection.
+3. We there's a request, the server spend 53.75% of the time on `parse_request` function, which is used to read the request and parse the header. The time for handling the request is only 11.68%, compared with the time for parsing the request, it's much smaller. So the header parser is the bottleneck of the server.
+4. If we enable the profiler, the execution time is 9.48s, but without the profiler, the execution time is 2.39s. The profiler takes 7.09s, which is 296.23% of the execution time. The overhead is huge, but it's acceptable since the profiler is used for debugging only once or twice.
+
+
 ## Q4
 
 ld f1  1cycle 
