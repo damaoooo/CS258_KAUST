@@ -55,28 +55,46 @@ From the text result, it's not clear about the invoking relationship. But in the
 
 ## Q4
 
-ld f1  1cycle 
+Juyi 
 
-mul f4,f2,f0  7 cycle
+####  数据依赖
 
-ld f6 1 cycle  
+L2 和L1 
 
-add f6   4 cycle 写后读, 不能改. 
+L4 和L2, L3 
 
-st f6 1 cycle
+L5 和L4 
 
-add r1, r1, 8  1 cycle
+L9 和L8控制依赖
 
-add r2, r2, 8 1 cycle
+假设不用经过ALU可以直接bypass到mem.
 
-add r3, -1  1 cycle
+| IF         | ID   | read REG          | ALU                                | MEM  | Write back |
+| ---------- | ---- | ----------------- | ---------------------------------- | ---- | ---------- |
+| L1         |      |                   |                                    |      |            |
+| L3         | L1   |                   |                                    |      |            |
+| L2         | L3   | L1,r1; (floating) |                                    |      |            |
+| L6         | L2   | L3,r2 (floating)  |                                    | L1   |            |
+| L7         | L6   | L2, f0            |                                    | L3   | L1,f2      |
+| L8         | L7   | L2,f2             |                                    |      | L3,f6      |
+|            | L8   | L6,r1             | L2,mul f4, f2, f0(float, 7个cycle) |      |            |
+|            |      | L7,r2             | L6, (int , 1cycle)                 |      |            |
+|            |      | L8,r3             | L7, (int , 1cycle)                 |      | L6, r1     |
+|            |      |                   | L8, (int , 1cycle)                 |      | L7, r2     |
+|            |      |                   |                                    |      | L8, r3     |
+| L4,        |      | L9,r0             |                                    |      |            |
+|            | L4,  |                   | L9,bnz                             |      |            |
+| L1(rename) |      | L4,               |                                    |      | L2,f4      |
+| L3         | L1   |                   | L4, add f6, f4, f6( float, 4cycle) |      |            |
+| L2         | L3   | L1,r1; (floating) |                                    |      |            |
+| L6         | L2   | L3,r2 (floating)  |                                    | L1   |            |
+| L5         | L6   | L2, f0            |                                    | L3   | L1,f2      |
+|            | L5   |                   |                                    |      | L4, f6     |
+|            |      | L5,f6             |                                    |      |            |
+|            |      | L5,r2             |                                    |      |            |
+|            |      |                   |                                    | L5   |            |
+|            |      |                   |                                    |      |            |
 
-bnz  1cycle, 但是可以都预测为跳转,  循环次数很大的时候 约等于0 
+9N instructions in 13N+ 9 cycles
 
-总共17个cycle, 9个instruction 
-
-不能同时读取两个浮点数.  我们也不能重命名寄存器.
-
-IPC :  17/9=1.88888888889 
-
-这样可能不对? 需要excel 一个个stage算吗?  
+IPC = (9N)/(13N+9) ~ 0.69
