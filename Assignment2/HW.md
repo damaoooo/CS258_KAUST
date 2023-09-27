@@ -37,7 +37,7 @@ $f = \frac{1}{400\mathrm{ps}} = 2.5\mathrm{GHz}$
 Since the webserver speed most of the time on waiting connection if the webserver is idle. Here we simulate this scenario.
 
 1. We measure the time starting at the server start
-2. We generate 1000 requests in POST method to avoid cache.
+2. We generate 1000 requests in POST method to avoid cache used in GET and simulate the requests.
 3. We measure the time when the server finished all the requests and quit.
 4. We manually set a time counter to compare the running time of the server with/without profiler.
 
