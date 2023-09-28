@@ -2,6 +2,10 @@
 
 
 
+# Assignment 2
+
+<center>Tongzhou Gu, Juyi Lin, Li Zhou</center>
+
 ## Q1
 
 **For Device A:**
