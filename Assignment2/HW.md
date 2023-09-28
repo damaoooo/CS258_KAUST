@@ -55,46 +55,8 @@ From the text result, it's not clear about the invoking relationship. But in the
 
 ## Q4
 
-Juyi 
+we assume our CPU is speculative execution (including speculative load, which will load data from memory first and check whether this memory is written by previous instructions later), out of order, support register renaming.
 
-####  数据依赖
+But the state of the CPU is not recurrent, which means for each loop, the instruction pipeline's state is not consistant. So by estimation, our IPC is 9 instructions / 10 cycles = 0.9.
 
-L2 和L1 
-
-L4 和L2, L3 
-
-L5 和L4 
-
-L9 和L8控制依赖
-
-假设不用经过ALU可以直接bypass到mem.
-
-| IF         | ID   | read REG          | ALU                                | MEM  | Write back |
-| ---------- | ---- | ----------------- | ---------------------------------- | ---- | ---------- |
-| L1         |      |                   |                                    |      |            |
-| L3         | L1   |                   |                                    |      |            |
-| L2         | L3   | L1,r1; (floating) |                                    |      |            |
-| L6         | L2   | L3,r2 (floating)  |                                    | L1   |            |
-| L7         | L6   | L2, f0            |                                    | L3   | L1,f2      |
-| L8         | L7   | L2,f2             |                                    |      | L3,f6      |
-|            | L8   | L6,r1             | L2,mul f4, f2, f0(float, 7个cycle) |      |            |
-|            |      | L7,r2             | L6, (int , 1cycle)                 |      |            |
-|            |      | L8,r3             | L7, (int , 1cycle)                 |      | L6, r1     |
-|            |      |                   | L8, (int , 1cycle)                 |      | L7, r2     |
-|            |      |                   |                                    |      | L8, r3     |
-| L4,        |      | L9,r0             |                                    |      |            |
-|            | L4,  |                   | L9,bnz                             |      |            |
-| L1(rename) |      | L4,               |                                    |      | L2,f4      |
-| L3         | L1   |                   | L4, add f6, f4, f6( float, 4cycle) |      |            |
-| L2         | L3   | L1,r1; (floating) |                                    |      |            |
-| L6         | L2   | L3,r2 (floating)  |                                    | L1   |            |
-| L5         | L6   | L2, f0            |                                    | L3   | L1,f2      |
-|            | L5   |                   |                                    |      | L4, f6     |
-|            |      | L5,f6             |                                    |      |            |
-|            |      | L5,r2             |                                    |      |            |
-|            |      |                   |                                    | L5   |            |
-|            |      |                   |                                    |      |            |
-
-9N instructions in 13N+ 9 cycles
-
-IPC = (9N)/(13N+9) ~ 0.69
+For the detailed information, please refer to the `a2q4.xlsx` file.
