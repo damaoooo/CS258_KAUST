@@ -219,24 +219,24 @@ def simulate(n: int):
         "sqms": system.simulate_rr(reqs, 1, n),
         "mqms_sq": system.simulate_sq(reqs, n, 1),
         "mqms_rr": system.simulate_rr(reqs, n, 1),
-        "prio_short": system.simulate_prio(reqs, n, 50),
-        "prio_long": system.simulate_prio(reqs, 50, n),
+        # "prio_short": system.simulate_prio(reqs, n, 50),
+        # "prio_long": system.simulate_prio(reqs, 50, n),
     }
 
-def sol_b_c_d_e():
-    n_servers = [i for i in range(1, MAX_N_SERVERS)]
-    with Pool() as p:
-        results = p.map(simulate, n_servers)
-        with open("results.json", "w") as f:
-            f.write(json.dumps(results))
+# def sol_b_c_d_e():
+#     n_servers = [i for i in range(1, MAX_N_SERVERS)]
+#     with Pool() as p:
+#         results = p.map(simulate, n_servers)
+#         with open("results.json", "w") as f:
+#             f.write(json.dumps(results))
 
-def verify():
-    reqs = copy.deepcopy(requests)
-    system = System()
-    system.simulate_rr(reqs, 1, 25) # q5.c
-    system.simulate_sq(reqs, 28, 1) # q5.d
-    system.simulate_rr(reqs, 192, 1) # q5.e
-    system.simulate_prio(reqs, 3, 13) # q5.f
+# def verify():
+#     reqs = copy.deepcopy(requests)
+#     system = System()
+#     system.simulate_rr(reqs, 1, 25) # q5.c
+#     system.simulate_sq(reqs, 28, 1) # q5.d
+#     system.simulate_rr(reqs, 192, 1) # q5.e
+#     system.simulate_prio(reqs, 3, 13) # q5.f
 
 # sol_b_c_d_e()
-verify()
+# verify()
