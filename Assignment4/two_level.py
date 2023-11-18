@@ -1,6 +1,6 @@
 import m5
 from m5.objects import *
-
+from caches import *
 
 system = System()
 
@@ -13,12 +13,24 @@ system.mem_ranges = [AddrRange('512MB')]
 
 
 system.cpu = X86TimingSimpleCPU()
-
+system.cpu.icache = L1ICache()
+system.cpu.dcache = L1DCache()
 
 system.membus = SystemXBar()
 
-system.cpu.icache_port = system.membus.cpu_side_ports
-system.cpu.dcache_port = system.membus.cpu_side_ports
+system.cpu.icache.connectCPU(system.cpu)
+system.cpu.dcache.connectCPU(system.cpu)
+
+system.l2bus = L2XBar()
+
+system.cpu.icache.connectBus(system.l2bus)
+system.cpu.dcache.connectBus(system.l2bus)
+
+system.l2cache = L2Cache()
+system.l2cache.connectCPUSideBus(system.l2bus)
+
+system.membus = SystemXBar()
+system.l2cache.connectMemSideBus(system.membus)
 
 system.cpu.createInterruptController()
 system.cpu.interrupts[0].pio = system.membus.mem_side_ports

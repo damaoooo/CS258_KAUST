@@ -8,6 +8,12 @@ class L1Cache(Cache):
     response_latency = 2
     mshrs = 4
     tgts_per_mshr = 20
+    def connectCPU(self, cpu):
+    # need to define this in a base class!
+        raise NotImplementedError
+
+    def connectBus(self, bus):
+        self.mem_side = bus.cpu_side_ports
 
 class L1ICache(L1Cache):
     size = '16kB'
@@ -23,13 +29,11 @@ class L2Cache(Cache):
     response_latency = 20
     mshrs = 20
     tgts_per_mshr = 12
+    def connectCPUSideBus(self, bus):
+        self.cpu_side = bus.mem_side_ports
 
-def connectCPU(self, cpu):
-    # need to define this in a base class!
-    raise NotImplementedError
-
-def connectBus(self, bus):
-    self.mem_side = bus.cpu_side_ports
+    def connectMemSideBus(self, bus):
+        self.mem_side = bus.cpu_side_ports
 
 class L1ICache(L1Cache):
     size = '16kB'
@@ -43,8 +47,6 @@ class L1DCache(L1Cache):
     def connectCPU(self, cpu):
         self.cpu_side = cpu.dcache_port
 
-def connectCPUSideBus(self, bus):
-    self.cpu_side = bus.mem_side_ports
 
-def connectMemSideBus(self, bus):
-    self.mem_side = bus.cpu_side_ports
+
+
