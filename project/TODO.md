@@ -14,9 +14,15 @@ microarchitecture pipeline, fetch and decode, and a simple load/store unit
 
 要实现加法器， 移位器， logic， 乘法器， 除法器， 比较器， register file。 
 
+Ljy :  移位器， logic， 
+
+zhou li:  加法器， 乘法器， 除法器
 
 
 
+创建一个抽象类, 
+
+device, clock 改变的时候发送signal,
 
 
 
@@ -25,16 +31,6 @@ microarchitecture pipeline, fetch and decode, and a simple load/store unit
 完成 simulation.   Stage 2 is due December 1st.
 
 性能测试做simulation ,  Stage 3 and the entire project is due December 13th.
-
-
-
-
-
-
-
-
-
-
 
 
 
