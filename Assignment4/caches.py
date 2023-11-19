@@ -15,12 +15,6 @@ class L1Cache(Cache):
     def connectBus(self, bus):
         self.mem_side = bus.cpu_side_ports
 
-class L1ICache(L1Cache):
-    size = '16kB'
-
-class L1DCache(L1Cache):
-    size = '64kB'
-
 class L2Cache(Cache):
     size = '256kB'
     assoc = 8
