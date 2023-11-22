@@ -1,12 +1,16 @@
 import math
 import random
 
+
+memory_access_time = 100  # Time to access memory
+
 class D1CacheSimulator:
-    def __init__(self,line_size):
-        self.cache_size = 16 * 1024  # 16 KB for data
-        self.line_size = line_size  # 32 bytes
+    def __init__(self, cache_size, line_size, d2cache):
+        self.cache_size = cache_size
+        self.line_size = line_size
         self.num_lines = self.cache_size // self.line_size
         self.cache = [None] * self.num_lines  # Initialize cache with None
+        self.l2_cache = d2cache
 
         # Calculate bit sizes
         self.offset_bits = int(math.log2(self.line_size))
@@ -17,7 +21,7 @@ class D1CacheSimulator:
         self.hits = 0
         self.misses = 0
 
-    def access_cache(self, address):
+    def access_cache(self, address: int):
         offset = address & ((1 << self.offset_bits) - 1) # directely map to the cache, don't need offset
         index = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
         tag = address >> (self.offset_bits + self.index_bits)
@@ -25,15 +29,11 @@ class D1CacheSimulator:
         if self.cache[index] == tag:
             self.hits += 1
         else:
-            if self.cache[index] == tag:
-                self.hits += 1
-            else:
-                # On L1 miss, access L2 cache
-                self.misses += 1
-                self.l2_cache.access_cache(address)
-                if random.choice([True, False]):
-                    self.cache[index] = tag
-
+            # On L1 miss, access L2 cache
+            self.misses += 1
+            self.l2_cache.access_cache(address)
+            if random.choice([True, False]):
+                self.cache[index] = tag
 
     def flush_cache(self):
         self.cache = [None] * self.num_lines
@@ -54,8 +54,8 @@ class D1CacheSimulator:
         return self.hits, self.misses
 
 class D2CacheSimulator:
-    def __init__(self, line_size):
-        self.cache_size = 512 * 1024  # 512 KB for L2 cache
+    def __init__(self, cache_size, line_size):
+        self.cache_size = cache_size
         self.line_size = line_size
         self.num_lines = self.cache_size // self.line_size
         self.cache = [None] * self.num_lines  # Initialize cache with None
@@ -97,19 +97,33 @@ class D2CacheSimulator:
         return self.hits, self.misses
     
 
-def run_simulator(line_size, trace_file):
-    d2_simulator = D2CacheSimulator(line_size)
-    d1_simulator = D1CacheSimulator(line_size, d2_simulator)
+def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file):
+    d2_simulator = D2CacheSimulator(d2_cache_size, line_size)
+    d1_simulator = D1CacheSimulator(d1_cache_size, line_size, d2_simulator)
+
     with open(trace_file, 'r') as file:
         for line in file:
             d1_simulator.process_trace(line)
-    hits, misses = d1_simulator.report_stats()
-    print(f"Line Size: {line_size} - Cache Hits: {hits}, Cache Misses: {misses}")
 
+    l1_hits, l1_misses = d1_simulator.report_stats()
+    l2_hits, l2_misses = d2_simulator.report_stats()
+    print(f"L1 Cache Size: {d1_cache_size// 1024} KB, L2 Cache Size: {d2_cache_size // 1024} KB, Line Size: {line_size} Bytes")
+    print(f"L1 Hits: {l1_hits}, L1 Misses: {l1_misses}, L2 Hits: {l2_hits}, L2 Misses: {l2_misses}")
+    total_time = (l1_hits +l1_misses) * d1_access_time + (l1_misses) * d2_access_time + l2_misses * memory_access_time
+    l1_hit_rate = l1_hits / (l1_hits + l1_misses) if (l1_hits + l1_misses) > 0 else 0
+    l2_hit_rate = l2_hits / (l2_hits + l2_misses) if (l2_hits + l2_misses) > 0 else 0
+    print(f"L1 Hit Rate: {l1_hit_rate}, L2 Hit Rate: {l2_hit_rate}")
+    print(f"total_time: {total_time} cycles")
 
 
 if __name__ == '__main__':
-    trace_file = './Spec_Benchmark/008.espresso.din'  # Assuming this file is already decompressed
-    for line_size in [32, 64, 128]:
-        run_simulator(line_size, trace_file)
+    trace_file = './spec_benchmark/008.espresso.din'  # Assuming this file is already decompressed
+    d1_cache_sizes = [(32 * 1024, 1), (64 * 1024, 2)]  # (Size, Access Time)
+    d2_cache_sizes = [(512 * 1024, 8), (1024 * 1024, 12), (2 * 1024 * 1024, 16)]  # (Size, Access Time)
+    line_sizes = [32, 64, 128]
 
+    for d1_cache_size, d1_access_time in d1_cache_sizes:
+        for d2_cache_size, d2_access_time in d2_cache_sizes:
+            for line_size in line_sizes:
+                run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file)
+                print("-------------------------------------")
