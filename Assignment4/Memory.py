@@ -20,6 +20,8 @@ class MemoryPage:
     def read(self, address: int) -> int:
         assert address >> page_bit == self.base_address
         offset = address & (page_size - 1)
+        if offset not in self.data:
+            return 0
         return self.data[offset]
 
     def read_page(self) -> Dict[int, int]:
@@ -45,7 +47,7 @@ class Memory:
         """
         ret = []
 
-        pages_needed = math.ceil(size / (page_size))
+        pages_needed = math.ceil(size / page_size)
         allocated_pages = list(self.allocated_pages.keys())
         allocated_pages.sort()
 
@@ -93,10 +95,25 @@ class Memory:
         assert page_address in self
         self.allocated_pages[page_address].write(address, data)
 
+    def write_bytes(self, address: int, data: bytes) -> None:
+        for i in range(len(data)):
+            page_address = (address + i) >> page_bit
+            assert page_address in self
+            self.allocated_pages[page_address].write(address + i, data[i])
+
     def read(self, address: int) -> int:
         page_address = address >> page_bit
         assert page_address in self
         return self.allocated_pages[page_address].read(address)
 
+    def read_bytes(self, address: int, size: int) -> bytes:
+        ret = []
+        for i in range(size):
+            page_address = (address + i) >> page_bit
+            assert page_address in self
+            ret.append(self.allocated_pages[page_address].read(address + i))
+        return bytes(ret)
+
     def __contains__(self, address: int) -> bool:
         return address in self.allocated_pages
+
