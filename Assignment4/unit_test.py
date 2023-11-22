@@ -66,13 +66,17 @@ class MyTestCase(unittest.TestCase):
     def test_large_read_and_write(self):
         self.test_continuously_read_and_write(1 * Size.MB)
 
-    def test_basic_page_table(self, virtual_address):
+    def test_basic_page_table(self, virtual_address: int = 0x12345678):
         # virtual_address = 0x12345678
+        self.multi_page.L1PageTable.load_from_memory(self.multi_page.root_page_address, self.memory)
         l2_address = self.multi_page.query_l1(virtual_address)
+
         self.multi_page.L2PageTable.load_from_memory(l2_address, self.memory)
         l3_address = self.multi_page.query_l2(virtual_address)
+
         self.multi_page.L3PageTable.load_from_memory(l3_address, self.memory)
         physical_address = self.multi_page.query_l3(virtual_address)
+
         self.multi_page.L1PageTable.write_back_to_memory(self.multi_page.root_page_address, self.memory)
         self.multi_page.L2PageTable.write_back_to_memory(l2_address, self.memory)
         self.multi_page.L3PageTable.write_back_to_memory(l3_address, self.memory)
@@ -86,18 +90,20 @@ class MyTestCase(unittest.TestCase):
 
         virtual_address2 = 0x12345678
         physical_address2 = self.test_basic_page_table(virtual_address2)
+        self.assertEqual(physical_address, physical_address2)
 
         virtual_address3 = 0x12345679
         physical_address3 = self.test_basic_page_table(virtual_address3)
+        self.assertNotEqual(physical_address, physical_address3)
+        self.assertEqual(page_index(physical_address), page_index(physical_address3))
 
         virtual_address4 = 0x22345678
         physical_address4 = self.test_basic_page_table(virtual_address4)
-
-        self.assertEqual(physical_address, physical_address2)
-        self.assertNotEqual(physical_address, physical_address3)
-        self.assertEqual(page_index(physical_address), page_index(physical_address3))
-        print(hex(physical_address4))
         self.assertNotEqual(page_index(physical_address), page_index(physical_address4))
+
+        virtual_address5 = 0x22345679
+        physical_address5 = self.test_basic_page_table(virtual_address5)
+        self.assertEqual(page_index(physical_address4), page_index(physical_address5))
 
 
 if __name__ == '__main__':

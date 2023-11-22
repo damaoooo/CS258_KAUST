@@ -48,7 +48,7 @@ class PageTable:
             for i in range(0, 2 ** self.page_bit):
                 flag_byte = data[i * 4]
                 valid = bool(flag_byte & 0b1)
-                address = int.from_bytes(data[i * 4 + 1:i * 4 + 4], byteorder='big') & (2 << 20 - 1)
+                address = int.from_bytes(data[i * 4 + 1:i * 4 + 4], byteorder='big') & ((2 << 20) - 1)
                 self.entries[i] = PageTableEntry(address, valid)
         else:
             for i in range(0, 2 ** self.page_bit):
@@ -149,7 +149,7 @@ class MultiLevelPageTable:
         else:
             # Allocate a new L3 page table
             new_l3_physical_address = self.allocate_page(page_level=3)
-            self.L3PageTable.add_entry(l2_index, new_l3_physical_address)
+            self.L2PageTable.add_entry(l2_index, new_l3_physical_address)
 
         return self.L2PageTable.entries[l2_index].value
 
