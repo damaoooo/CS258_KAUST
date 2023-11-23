@@ -70,7 +70,7 @@ class PageTable:
                 else:
                     buffer += self.entries[i].value.to_bytes(4, byteorder='big')
             else:
-                 buffer += b'\x00' * (4 if self.is_last else 5)
+                buffer += b'\x00' * (4 if self.is_last else 5)
         assert len(buffer) == self.page_size
         return buffer
 

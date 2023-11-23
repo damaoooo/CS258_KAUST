@@ -3,6 +3,7 @@ import random
 import unittest
 from Memory import Memory, MemoryPage, Size
 from Page import PageTable, page_index, MultiLevelPageTable
+from TLBCache import TLB
 
 
 class MyTestCase(unittest.TestCase):
@@ -10,6 +11,7 @@ class MyTestCase(unittest.TestCase):
     def setUp(self):
         self.memory = Memory(0)
         self.multi_page = MultiLevelPageTable(self.memory, levels=[6, 8, 6])
+        self.tlb = TLB()
 
     def test_something(self):
         self.assertEqual(True, True)  # add assertion here
@@ -104,6 +106,40 @@ class MyTestCase(unittest.TestCase):
         virtual_address5 = 0x22345679
         physical_address5 = self.test_basic_page_table(virtual_address5)
         self.assertEqual(page_index(physical_address4), page_index(physical_address5))
+
+    def test_tlb_single(self):
+        self.tlb.update(0x12345678, 0x87654321 >> 12)
+
+        self.assertEqual(self.tlb.query(0x12345678).frame_number, 0x87654321 >> 12)
+        self.assertEqual(self.tlb.query(0x12345679).frame_number, 0x87654321 >> 12)
+
+    def test_tlb_overflow(self):
+        random_mapping = {}
+
+        last_frame_number = 0
+        last_virtual_address = 0
+        for i in range(self.tlb.size):
+            last_virtual_address = random.randint(0, 0xffffffff)
+            last_frame_number = random.randint(0, 0xffffffff) >> 12
+            random_mapping[last_virtual_address] = last_frame_number
+
+        for virtual_address, frame_number in random_mapping.items():
+            self.tlb.update(virtual_address, frame_number)
+
+        for virtual_address, frame_number in random_mapping.items():
+            self.assertEqual(self.tlb.query(virtual_address).frame_number, frame_number)
+
+        new_mapping = {}
+        for i in range(self.tlb.size-1):
+            new_mapping[random.randint(0, 0xffffffff)] = random.randint(0, 0xffffffff) >> 12
+
+        for virtual_address, frame_number in new_mapping.items():
+            self.tlb.update(virtual_address, frame_number)
+
+        for virtual_address, frame_number in new_mapping.items():
+            self.assertEqual(self.tlb.query(virtual_address).frame_number, frame_number)
+
+        self.assertEqual(self.tlb.query(last_virtual_address).frame_number, last_frame_number)
 
 
 if __name__ == '__main__':
