@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 PageSize = 12
 
@@ -12,3 +12,22 @@ class Size(IntEnum):
 
 def page_index(x: int) -> int:
     return x >> PageSize
+
+class Associativity(Enum):
+    DirectMapped = 1
+    FullyAssociative = 2
+    SetAssociative = 3
+
+
+class CacheReplaceAlgorithm(Enum):
+    LRU = 1
+    FIFO = 2
+    Random = 3
+
+
+class OP(Enum):
+    MemoryRead = 0
+    MemoryWrite = 1
+    InstructionFetch = 2
+    Ignore = 3
+    Flush = 4

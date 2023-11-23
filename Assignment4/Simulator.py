@@ -7,26 +7,6 @@ from Utils import *
 from Memory import Memory
 
 
-class Associativity(Enum):
-    DirectMapped = 1
-    FullyAssociative = 2
-    SetAssociative = 3
-
-
-class CacheReplaceAlgorithm(Enum):
-    LRU = 1
-    FIFO = 2
-    Random = 3
-
-
-class OP(Enum):
-    MemoryRead = 0
-    MemoryWrite = 1
-    InstructionFetch = 2
-    Ignore = 3
-    Flush = 4
-
-
 class Instruction:
     def __init__(self, op: OP, address: int, value: int):
         self.op: OP = op
@@ -140,7 +120,8 @@ class Simulator:
             if instruction.op == OP.MemoryRead:
                 self.memory.read_bytes(self.address_translate(instruction.address), 4)
             elif instruction.op == OP.MemoryWrite:
-                self.memory.write_bytes(self.address_translate(instruction.address), instruction.value.to_bytes(4, 'big'))
+                self.memory.write_bytes(self.address_translate(instruction.address),
+                                        instruction.value.to_bytes(4, 'big'))
             elif instruction.op == OP.Flush:
                 self.cache.flush()
                 self.tlb.flush()
@@ -156,5 +137,3 @@ if __name__ == '__main__':
     simulator = Simulator(config)
     instructions = simulator.parse_file()
     print(len(instructions))
-
-

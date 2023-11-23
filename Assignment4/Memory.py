@@ -1,6 +1,6 @@
-from Utils import *
-from typing import List, Dict, Optional
+from typing import List, Dict
 import math
+from Utils import *
 
 page_bit = 12
 page_size = 2 ** page_bit
@@ -54,35 +54,35 @@ class Memory:
         if len(allocated_pages) == 0:
             page_start = self.start_address
             for i in range(pages_needed):
-                i_th_page = page_start + i * page_size
-                self.allocate_page_at_address(i_th_page)
-                ret.append(i_th_page)
-            return ret
-        elif len(allocated_pages) == 1:
-            page_start = allocated_pages[0] + 1
-            for i in range(pages_needed):
-                i_th_page = page_start + i * page_size
+                i_th_page = page_start + i
                 self.allocate_page_at_address(i_th_page << page_bit)
                 ret.append(i_th_page)
             return ret
-        else:
 
-            # Allocate pages in the middle
-            for i in range(len(allocated_pages) - 1):
-                if allocated_pages[i + 1] - allocated_pages[i] > pages_needed:
-                    page_start = allocated_pages[i] + 1
-                    for j in range(pages_needed):
-                        j_th_page = page_start + j * page_size
-                        self.allocate_page_at_address(j_th_page)
-                        ret.append(j_th_page)
-                    return ret
-            # No space in the middle, allocate at the end
-            page_start = allocated_pages[-1] + 1
+        if len(allocated_pages) == 1:
+            page_start = allocated_pages[0] + 1
             for i in range(pages_needed):
-                i_th_page = page_start + i * page_size
-                self.allocate_page_at_address(i_th_page)
+                i_th_page = page_start + i
+                self.allocate_page_at_address(i_th_page << page_bit)
                 ret.append(i_th_page)
             return ret
+
+        # Allocate pages in the middle
+        for i in range(len(allocated_pages) - 1):
+            if allocated_pages[i + 1] - allocated_pages[i] > pages_needed:
+                page_start = allocated_pages[i] + 1
+                for j in range(pages_needed):
+                    j_th_page = page_start + j
+                    self.allocate_page_at_address(j_th_page << page_bit)
+                    ret.append(j_th_page)
+                return ret
+        # No space in the middle, allocate at the end
+        page_start = allocated_pages[-1] + 1
+        for i in range(pages_needed):
+            i_th_page = page_start + i
+            self.allocate_page_at_address(i_th_page << page_bit)
+            ret.append(i_th_page)
+        return ret
 
     def free_page(self, address: int) -> None:
         self.allocated_pages.pop(address, None)
@@ -116,4 +116,3 @@ class Memory:
 
     def __contains__(self, address: int) -> bool:
         return address in self.allocated_pages
-

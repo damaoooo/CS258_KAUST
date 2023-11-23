@@ -20,18 +20,16 @@ class MyTestCase(unittest.TestCase):
 
         self.memory.flush()
         page = self.memory.allocate_page(Size.KB * 4)
-        print(page)
         self.assertEqual(len(page), 1)
         self.assertEqual(page[0], 0)
 
     def test_multi_allocate(self, size=Size.MB * 100):
         self.memory.flush()
         pages = self.memory.allocate_page(size)
-        print(pages[:3])
         num_pages = math.ceil(size / (4 * Size.KB))
         self.assertEqual(len(pages), num_pages)
         self.assertEqual(pages[0], 0)
-        self.assertEqual(pages[-1], (num_pages - 1) * 4 * Size.KB)
+        self.assertEqual(pages[-1], (num_pages - 1))
 
     def test_write_and_read_byte(self, size=1000 * Size.KB):
         self.memory.flush()
@@ -140,6 +138,10 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(self.tlb.query(virtual_address).frame_number, frame_number)
 
         self.assertEqual(self.tlb.query(last_virtual_address).frame_number, last_frame_number)
+
+        virtual_address6 = 0x87654321
+        physical_address6 = self.test_basic_page_table(virtual_address6)
+        self.assertNotEqual(page_index(physical_address4), page_index(physical_address6))
 
 
 if __name__ == '__main__':

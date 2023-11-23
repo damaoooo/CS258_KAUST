@@ -33,7 +33,7 @@ class PageTable:
         self.address = address
 
     @staticmethod
-    def get_page_size(page_bits, is_last: bool):
+    def get_page_size(page_bits, is_last):
         if is_last:
             return 2 ** page_bits * 4
         else:
@@ -44,17 +44,18 @@ class PageTable:
 
     def deserialize(self, data: bytes):
         assert len(data) == self.page_size
-
-        for i in range(0, 2 ** self.page_bit):
-            if self.is_last:
+        if self.is_last:
+            for i in range(0, 2 ** self.page_bit):
                 flag_byte = data[i * 4]
+                valid = bool(flag_byte & 0b1)
                 address = int.from_bytes(data[i * 4 + 1:i * 4 + 4], byteorder='big') & ((2 << 20) - 1)
-            else:
+                self.entries[i] = PageTableEntry(address, valid)
+        else:
+            for i in range(0, 2 ** self.page_bit):
                 flag_byte = data[i * 5]
+                valid = bool(flag_byte & 0b1)
                 address = int.from_bytes(data[i * 5 + 1:i * 5 + 5], byteorder='big')
-
-            valid = bool(flag_byte & 0b1)
-            self.entries[i] = PageTableEntry(address, valid)
+                self.entries[i] = PageTableEntry(address, valid)
 
     def serialize(self):
         buffer = b""
@@ -69,7 +70,7 @@ class PageTable:
                 else:
                     buffer += self.entries[i].value.to_bytes(4, byteorder='big')
             else:
-                buffer += b'\x00' * (4 if self.is_last else 5)
+                 buffer += b'\x00' * (4 if self.is_last else 5)
         assert len(buffer) == self.page_size
         return buffer
 
