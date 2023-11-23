@@ -29,7 +29,7 @@ class CacheSimulatorBase:
         else:
             raise ValueError(f"Unknown cache policy: {cache_policy}")
 
-    def replace_cache_line(self, index, tag):
+    def replace_cache_line(self, tag, value):
         if self.cache_policy == "Random":
             replace_index = random.randint(0, self.num_lines - 1)
         elif self.cache_policy == "LRU":
@@ -41,7 +41,7 @@ class CacheSimulatorBase:
         else:  # Default behavior for unknown policy
             raise ValueError(f"Unknown cache policy: {self.cache_policy}")
 
-        self.cache[replace_index] = tag
+        self.cache[replace_index] = (tag, value)
 
     def access_cache(self, address):
         # Similar to your existing access_cache implementation
@@ -55,12 +55,12 @@ class D1CacheSimulator(CacheSimulatorBase):
         self.l2_cache = d2cache
         self.cache = [None] * self.num_lines
 
-    def access_cache(self, address: int):
+    def access_cache(self, address: int, value):
         offset = address & ((1 << self.offset_bits) - 1)  # directely map to the cache, don't need offset
         index = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
         tag = address >> (self.offset_bits + self.index_bits)
 
-        if self.cache[index] == tag:
+        if self.cache[index] and self.cache[index][0] == tag: 
             self.hits += 1
             if self.cache_policy == "LRU":
                 self.usage_order.remove(index)  # Remove from current position
@@ -68,12 +68,12 @@ class D1CacheSimulator(CacheSimulatorBase):
         else:
             # On L1 miss, access L2 cache
             self.misses += 1
-            self.l2_cache.access_cache(address)
+            self.l2_cache.access_cache(address,value)
             if self.cache_policy == "LRU" and index not in self.usage_order:
                 self.usage_order.appendleft(index)  # Add new index for LRU tracking
             if self.cache_policy == "FIFO" and index not in self.insertion_order:
                 self.insertion_order.appendleft(index)
-            self.replace_cache_line(index, tag)
+            self.replace_cache_line(tag, value) 
 
     def flush_cache(self):
         self.cache = [None] * self.num_lines
@@ -83,9 +83,10 @@ class D1CacheSimulator(CacheSimulatorBase):
         op = int(parts[0])  # Operation code is in decimal
         address = int(parts[1], 16)  # Address is in hexadecimal
         address &= (1 << 32) - 1  # Ensure 32-bit address
+        value = int(parts[2], 16)
 
         if op == 0 or op == 1:  # Memory read or write
-            self.access_cache(address)
+            self.access_cache(address, value)
         elif op == 4:  # Flush the cache
             self.flush_cache()
         # OP=2 (Instruction fetch) and OP=3 (Ignore) are not processed
@@ -104,7 +105,7 @@ class D2CacheSimulator(CacheSimulatorBase):
 
         self.policy_data = [[0] * self.associativity for _ in range(self.num_sets)]
 
-    def replace_line_in_set(self, set_index, tag):
+    def replace_line_in_set(self, set_index, tag,value):
         set = self.cache[set_index]
         policy_data = self.policy_data[set_index]
 
@@ -117,23 +118,24 @@ class D2CacheSimulator(CacheSimulatorBase):
         else:  # Default behavior, replace first None or the first line
             replace_index = set.index(None) if None in set else 0
 
-        set[replace_index] = tag
+        set[replace_index] = (tag,value)
         policy_data[replace_index] = self.hits if self.cache_policy in ["LRU", "FIFO"] else 0
 
-    def access_cache(self, address):
+    def access_cache(self, address,value):
         offset = address & ((1 << self.offset_bits) - 1)
         set_index = (address >> self.offset_bits) & ((1 << self.set_index_bits) - 1)
         tag = address >> (self.offset_bits + self.set_index_bits)
 
         set = self.cache[set_index]  # one set has 4 lines
+        tags_in_set = [line[0] for line in set if line] 
         try:
-            way = set.index(tag)
+            way = tags_in_set.index(tag)
             self.hits += 1
             if self.cache_policy == "LRU":
                 self.policy_data[set_index][way] = self.hits  # Update LRU timestamp
         except ValueError:
             self.misses += 1
-            self.replace_line_in_set(set_index, tag)
+            self.replace_line_in_set(set_index, tag,value)
 
     def flush_cache(self):
         self.cache = [None] * self.num_lines
@@ -142,9 +144,10 @@ class D2CacheSimulator(CacheSimulatorBase):
         parts = trace_line.split()
         op = int(parts[0])  # Operation code is in decimal
         address = int(parts[1], 16)  # Address is in hexadecimal
+        value = int(parts[2], 16)
 
         if op == 0 or op == 1:  # Memory read or write
-            self.access_cache(address)
+            self.access_cache(address, value)
         elif op == 4:  # Flush the cache
             self.flush_cache()
         # OP=2 (Instruction fetch) and OP=3 (Ignore) are not processed
