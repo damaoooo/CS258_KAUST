@@ -17,17 +17,15 @@ class TLB:
         self.size = tlb_size
 
     def __contains__(self, item):
-        return item in self.entries
+        return page_index(item) in self.entries
 
     def __getitem__(self, item):
-        return self.entries[item]
+        return self.entries[page_index(item)]
 
-    def query(self, virtual_address: int) -> Union[None, TLBEntry]:
+    def query(self, virtual_address: int) -> TLBEntry:
         page_number = page_index(virtual_address)
-        if page_number in self.entries:
-            return self.entries[page_number]
-        else:
-            return None
+        assert page_number in self.entries
+        return self.entries[page_number]
 
     def update(self, virtual_address: int, frame_number: int) -> None:
         page_number = page_index(virtual_address)
@@ -41,4 +39,8 @@ class TLB:
 
         assert len(self.entries) <= self.size
         assert len(self.fifo_list) <= self.size
+
+    def flush(self):
+        self.entries.clear()
+        self.fifo_list.clear()
 

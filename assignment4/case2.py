@@ -1,6 +1,7 @@
 import math
 import random
 from collections import deque
+
 # change l2 directcache.py to l2 4 way set associative cache
 memory_access_time = 100  # Time to access memory
 
@@ -47,14 +48,15 @@ class CacheSimulatorBase:
         # Call self.replace_cache_line(index, tag) on a miss
         raise NotImplementedError
 
+
 class D1CacheSimulator(CacheSimulatorBase):
-    def __init__(self, cache_size, line_size, d2cache,cache_policy):
+    def __init__(self, cache_size, line_size, d2cache, cache_policy):
         super().__init__(cache_size, line_size, cache_policy)
         self.l2_cache = d2cache
         self.cache = [None] * self.num_lines
 
     def access_cache(self, address: int):
-        offset = address & ((1 << self.offset_bits) - 1) # directely map to the cache, don't need offset
+        offset = address & ((1 << self.offset_bits) - 1)  # directely map to the cache, don't need offset
         index = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
         tag = address >> (self.offset_bits + self.index_bits)
 
@@ -91,13 +93,14 @@ class D1CacheSimulator(CacheSimulatorBase):
     def report_stats(self):
         return self.hits, self.misses
 
+
 class D2CacheSimulator(CacheSimulatorBase):
     def __init__(self, cache_size, line_size, cache_policy):
         super().__init__(cache_size, line_size, cache_policy)
         self.associativity = 4  # 4-way set associative
         self.num_sets = self.cache_size // (self.line_size * self.associativity)
         self.cache = [[None] * self.associativity for _ in range(self.num_sets)]
-        self.set_index_bits = int(math.log2(self.num_sets))  
+        self.set_index_bits = int(math.log2(self.num_sets))
 
         self.policy_data = [[0] * self.associativity for _ in range(self.num_sets)]
 
@@ -122,7 +125,7 @@ class D2CacheSimulator(CacheSimulatorBase):
         set_index = (address >> self.offset_bits) & ((1 << self.set_index_bits) - 1)
         tag = address >> (self.offset_bits + self.set_index_bits)
 
-        set = self.cache[set_index] # one set has 4 lines
+        set = self.cache[set_index]  # one set has 4 lines
         try:
             way = set.index(tag)
             self.hits += 1
@@ -148,11 +151,12 @@ class D2CacheSimulator(CacheSimulatorBase):
 
     def report_stats(self):
         return self.hits, self.misses
-    
+
 
 def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy):
     d2_simulator = D2CacheSimulator(d2_cache_size, line_size, cache_policy)
-    d1_simulator = D1CacheSimulator(d1_cache_size // 2, line_size, d2_simulator, cache_policy)  # L1 is split in half between instructions and data.
+    d1_simulator = D1CacheSimulator(d1_cache_size // 2, line_size, d2_simulator,
+                                    cache_policy)  # L1 is split in half between instructions and data.
 
     with open(trace_file, 'r') as file:
         for line in file:
@@ -160,9 +164,10 @@ def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, 
 
     l1_hits, l1_misses = d1_simulator.report_stats()
     l2_hits, l2_misses = d2_simulator.report_stats()
-    print(f"L1 Cache Size: {d1_cache_size// 1024} KB, L2 Cache Size: {d2_cache_size // 1024} KB, Line Size: {line_size} Bytes")
+    print(
+        f"L1 Cache Size: {d1_cache_size // 1024} KB, L2 Cache Size: {d2_cache_size // 1024} KB, Line Size: {line_size} Bytes")
     print(f"L1 Hits: {l1_hits}, L1 Misses: {l1_misses}, L2 Hits: {l2_hits}, L2 Misses: {l2_misses}")
-    total_time = (l1_hits +l1_misses) * d1_access_time + (l1_misses) * d2_access_time + l2_misses * memory_access_time
+    total_time = (l1_hits + l1_misses) * d1_access_time + (l1_misses) * d2_access_time + l2_misses * memory_access_time
     l1_hit_rate = l1_hits / (l1_hits + l1_misses) if (l1_hits + l1_misses) > 0 else 0
     l2_hit_rate = l2_hits / (l2_hits + l2_misses) if (l2_hits + l2_misses) > 0 else 0
     print(f"L1 Hit Rate: {l1_hit_rate}, L2 Hit Rate: {l2_hit_rate}")
@@ -181,5 +186,6 @@ if __name__ == '__main__':
         for d2_cache_size, d2_access_time in d2_cache_sizes:
             for line_size in line_sizes:
                 for cache_policy in cache_policies:
-                    run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy)
+                    run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file,
+                                  cache_policy)
                 print("-------------------------------------")
