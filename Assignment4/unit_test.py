@@ -152,7 +152,8 @@ class CacheTest(unittest.TestCase):
                                              replace_algorithm=CacheReplaceAlgorithm.FIFO)
 
     def test_direct_cache(self):
-        pass
+        self.l1_cache.flush()
+        self.l1_cache.access_cache()
 
 
 if __name__ == '__main__':

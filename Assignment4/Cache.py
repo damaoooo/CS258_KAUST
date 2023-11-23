@@ -1,7 +1,7 @@
 from Utils import *
 import math
 from collections import deque
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import random
 
 
@@ -33,19 +33,24 @@ class DirectCacheBase:
 
         raise ValueError(f"Unknown cache policy: {self.replace_algorithm}")
 
-    def access_cache(self, address: int, value: bytes):
+    def access_cache(self, address: int, value: bytes = None) -> bool:
 
         index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
         tag: int = address >> (self.offset_bits + self.index_bits)
 
         if self.cache[index] and self.cache[index][0] == tag:
             self.hits += 1
-            if self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]:
+            if self.replace_algorithm == CacheReplaceAlgorithm.LRU:
                 self.helper_queue.remove(index)
                 self.helper_queue.appendleft(index)
+            return True
         else:
             self.misses += 1
-            self.replace_cache_line(tag, value)
+            return False
+            # if (self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]
+            #         and index not in self.helper_queue):
+            #     self.helper_queue.appendleft(index)
+            # self.replace_cache_line(tag, value)
 
     def replace_cache_line(self, tag: int, value: bytes):
         replace_index: int = self.get_evict_index()
@@ -54,6 +59,16 @@ class DirectCacheBase:
     def flush(self):
         self.cache = [() for _ in range(self.cache_line_num)]
         self.helper_queue = deque()
+
+    def read_cache(self, address: int):
+        assert self.access_cache(address)
+        index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        return self.cache[index][1]
+
+    def write_cache(self, address: int, value: bytes):
+        assert self.access_cache(address)
+        index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        self.cache[index] = (self.cache[index][0], value)
 
 
 class AssociativeCacheBase(DirectCacheBase):
@@ -90,7 +105,7 @@ class AssociativeCacheBase(DirectCacheBase):
         else:
             policy_data[replace_index] = 0
 
-    def access_cache(self, address: int, value: bytes):
+    def access_cache(self, address: int, value: bytes = None) -> Union[None, bytes]:
         set_index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
         tag: int = address >> (self.offset_bits + self.index_bits)
 
@@ -100,7 +115,7 @@ class AssociativeCacheBase(DirectCacheBase):
         if tag in tags_in_set:
             way: int = tags_in_set.index(tag)
             self.hits += 1
-            if self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]:
+            if self.replace_algorithm == CacheReplaceAlgorithm.LRU:
                 self.policy_data[set_index][way] = self.hits
         else:
             self.misses += 1
