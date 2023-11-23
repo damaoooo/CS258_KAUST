@@ -4,7 +4,8 @@ import unittest
 from Memory import Memory, MemoryPage, Size
 from Page import PageTable, page_index, MultiLevelPageTable
 from TLBCache import TLB
-
+from Cache import DirectCacheBase, AssociativeCacheBase
+from Utils import CacheReplaceAlgorithm, Associativity
 
 class MyTestCase(unittest.TestCase):
 
@@ -140,6 +141,18 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(self.tlb.query(virtual_address).frame_number, frame_number)
 
         self.assertEqual(self.tlb.query(last_virtual_address).frame_number, last_frame_number)
+
+
+class CacheTest(unittest.TestCase):
+    def setUp(self):
+        self.l1_cache = DirectCacheBase(cache_size=Size.KB * 32, cache_line_size=Size.B * 64,
+                                        replace_algorithm=CacheReplaceAlgorithm.FIFO)
+        self.l2_cache = AssociativeCacheBase(associative=Associativity.SetAssociative, n_way=4,
+                                             cache_size=Size.KB * 512, cache_line_size=Size.B * 64,
+                                             replace_algorithm=CacheReplaceAlgorithm.FIFO)
+
+    def test_direct_cache(self):
+        pass
 
 
 if __name__ == '__main__':
