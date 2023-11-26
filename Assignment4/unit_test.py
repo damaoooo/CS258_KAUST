@@ -1,6 +1,7 @@
 import math
 import random
 import unittest
+from Simulator import SimulatorConfigure, Simulator
 from Memory import Memory, MemoryPage, Size
 from Page import PageTable, page_index, MultiLevelPageTable
 from TLBCache import TLB
@@ -297,6 +298,29 @@ class CacheTest(unittest.TestCase):
 
         for address in wrote_value:
             self.assertEqual(self.l2_cache.read_cache(address), wrote_value[address])
+
+
+class SimulatorTest(unittest.TestCase):
+    def setUp(self):
+        self.simulator = Simulator(SimulatorConfigure(file_path='dummy.txt'))
+        self.simulator.cache.flush()
+
+    def test_page_walk(self):
+        phy = self.simulator.page_walk(0x12345678)
+        print(phy)
+        phy2 = self.simulator.page_walk(0x12345678)
+        self.assertEqual(phy, phy2)
+        phy3 = self.simulator.page_walk(0x12345679)
+        self.assertEqual(phy3, phy2)
+        phy4 = self.simulator.page_walk(0x22345678)
+        self.assertNotEqual(phy4, phy3)
+        phy5 = self.simulator.page_walk(0x22345689)
+        self.assertEqual(phy5, phy4)
+        phy6 = self.simulator.page_walk(0x32345679)
+        self.assertNotEqual(phy6, phy5)
+
+    def test_dry_run(self):
+        self.simulator.start_simulation()
 
 
 if __name__ == '__main__':

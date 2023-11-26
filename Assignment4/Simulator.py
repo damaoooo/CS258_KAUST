@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import List
 from Utils import *
 from Memory import Memory
+from Cache import Level2Cache
 
 
 class Instruction:
@@ -21,7 +22,7 @@ class SimulatorConfigure:
     L1_cacheline_size: int = 32 * Size.B
     L1_cache_size: int = 32 * Size.KB
 
-    L2_cacheline_size: int = 64 * Size.B
+    L2_cacheline_size: int = 32 * Size.B
     L2_cache_size: int = 512 * Size.KB
 
     L2_associativity: int = Associativity.SetAssociative
@@ -38,6 +39,21 @@ def parse_instructions(instruction: str):
     return Instruction(op=OP(int(op)), address=int(address, 16), value=int(value, 16))
 
 
+def address_align(address: int, cache_size: int):
+    # Ensure the address is the multiple of cache_size
+    return address // cache_size * cache_size
+
+
+def address_needed(address: int, size: int, unit: int):
+    # Ensure the address is the multiple of cache_size
+    result = []
+    i = 0
+    while unit * i < size:
+        result.append(address + unit * i)
+        i += 1
+    return result
+
+
 class Simulator:
     def __init__(self, config: SimulatorConfigure):
 
@@ -47,9 +63,11 @@ class Simulator:
         self.multi_page = MultiLevelPageTable(self.memory, levels=[6, 8, 6])
         self.tlb = TLB(config.TLB_size)
 
-        self.cache = Cache(config.L1_cacheline_size, config.L1_cache_size, config.L1_replace_algorithm)
+        self.cache = Level2Cache()
 
         self.instructions = self.parse_file()
+
+        assert self.cache.L1Cache.cache_line_size == self.cache.L2Cache.cache_line_size
 
     def parse_file(self):
         instruction_list: List[Instruction] = []
@@ -64,33 +82,27 @@ class Simulator:
         page_base_address = self.multi_page.root_page_address
 
         # L1 page table
-        if page_base_address in self.cache:
-            page_content = self.cache.read(page_base_address, self.multi_page.L1PageTable.page_size)
-            self.multi_page.L1PageTable.deserialize(page_content)
-        else:
-            self.multi_page.L1PageTable.load_from_memory(page_base_address, self.memory)
-            self.cache.write(page_base_address, self.multi_page.L1PageTable.serialize())
+        page_content = self.simu_read_data(page_base_address, self.multi_page.L1PageTable.page_size)
+        self.multi_page.L1PageTable.deserialize(page_content)
 
         # L2 page table
         l2_base_address = self.multi_page.query_l1(address)
-        if l2_base_address in self.cache:
-            page_content = self.cache.read(l2_base_address, self.multi_page.L2PageTable.page_size)
-            self.multi_page.L2PageTable.deserialize(page_content)
-        else:
-            self.multi_page.L2PageTable.load_from_memory(l2_base_address, self.memory)
-            self.cache.write(l2_base_address, self.multi_page.L2PageTable.serialize())
+        l2_page_content = self.simu_read_data(l2_base_address, self.multi_page.L2PageTable.page_size)
+        self.multi_page.L2PageTable.deserialize(l2_page_content)
 
         # L3 page table
         l3_base_address = self.multi_page.query_l2(address)
-        if l3_base_address in self.cache:
-            page_content = self.cache.read(l3_base_address, self.multi_page.L3PageTable.page_size)
-            self.multi_page.L3PageTable.deserialize(page_content)
-        else:
-            self.multi_page.L3PageTable.load_from_memory(l3_base_address, self.memory)
-            self.cache.write(l3_base_address, self.multi_page.L3PageTable.serialize())
+        l3_page_content = self.simu_read_data(l3_base_address, self.multi_page.L3PageTable.page_size)
+        self.multi_page.L3PageTable.deserialize(l3_page_content)
 
         # Physical address
         physical_address = self.multi_page.query_l3(address)
+
+        # Update write back
+        self.simu_write_data(page_base_address, self.multi_page.L1PageTable.serialize())
+        self.simu_write_data(l2_base_address, self.multi_page.L2PageTable.serialize())
+        self.simu_write_data(l3_base_address, self.multi_page.L3PageTable.serialize())
+
         return physical_address
 
     def address_translate(self, v_address: int):
@@ -101,17 +113,54 @@ class Simulator:
             self.tlb.update(v_address, p_address)
         return p_address
 
+    def simu_read_data(self, address: int, size: int = 4):
+        need_size = size
+        # p_address = self.address_translate(address)
+        aligned_address = address_align(address, self.config.L1_cacheline_size)
+        aligned_size = address - aligned_address
+        needed_addresses = address_needed(aligned_address, need_size + aligned_size, self.config.L1_cacheline_size)
+
+        result = b''
+
+        for idx, address in enumerate(needed_addresses):
+            if address in self.cache:
+                result += self.cache.read_cache(address)[1]
+            else:
+                result += self.memory.read_bytes(address, self.config.L1_cacheline_size)
+                self.cache.write_cache(address, result[-self.config.L1_cacheline_size:])
+
+        result = result[aligned_size:aligned_size + size]
+        return result
+
+    def simu_write_data(self, address: int, data: bytes):
+        # p_address = self.address_translate(address)
+        aligned_address = address_align(address, self.config.L1_cacheline_size)
+        aligned_size = address - aligned_address
+        data = b'\x00' * aligned_size + data
+        need_size = len(data)
+
+        needed_address = address_needed(aligned_address, need_size, self.config.L1_cacheline_size)
+        sliced_data = [data[i:i + self.config.L1_cacheline_size] for i in
+                       range(0, len(data), self.config.L1_cacheline_size)]
+
+        for idx, address in enumerate(needed_address):
+            if address in self.cache:
+                self.cache.write_cache(address, sliced_data[idx])
+            else:
+                self.memory.write_bytes(address, sliced_data[idx])
+                self.cache.write_cache(address, sliced_data[idx])
+
     def read_bytes(self, address: int, size: int = 4):
         p_address = self.address_translate(address)
         if p_address in self.cache:
-            return self.cache.read(p_address, size)
+            return self.cache.read_cache(p_address, size)
 
         return self.memory.read_bytes(p_address, size)
 
     def write_bytes(self, address: int, value: bytes):
         p_address = self.address_translate(address)
         if p_address in self.cache:
-            self.cache.write(p_address, value)
+            self.cache.write_cache(p_address, value)
         else:
             self.memory.write_bytes(p_address, value)
 

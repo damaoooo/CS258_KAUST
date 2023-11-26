@@ -21,7 +21,8 @@ class DirectCacheBase:
         self.misses = 0
         self.cache: List[Tuple] = [() for _ in range(self.cache_line_num)]
 
-        self.helper_queue = deque()
+    def __contains__(self, item):
+        return self.access_cache_free(item)
 
     def get_evict_index(self, address: int) -> int:
         # there is no evict algorithm in L1 Direct map cache
@@ -36,9 +37,6 @@ class DirectCacheBase:
 
         if self.cache[index] and self.cache[index][0] == tag:
             self.hits += 1
-            if self.replace_algorithm == CacheReplaceAlgorithm.LRU:
-                self.helper_queue.remove(index)
-                self.helper_queue.appendleft(index)
             return True
         else:
             self.misses += 1
@@ -171,6 +169,10 @@ class AssociativeCacheBase(DirectCacheBase):
         tag: int = address >> (self.offset_bits + self.index_bits)
         set_cache: List[Tuple] = self.cache[set_index]
         tags_in_set: List[int] = [line[0] for line in set_cache if line]
+
+        if tag not in tags_in_set:
+            return False
+
         way = tags_in_set.index(tag)
         before_hit = self.policy_data[set_index][way]
         result = self.access_cache(address)
@@ -189,11 +191,35 @@ class Level2Cache:
         self.L1Cache = DirectCacheBase(cache_size=32 * Size.KB, cache_line_size=32 * Size.B,
                                        replace_algorithm=CacheReplaceAlgorithm.LRU)
         self.L2Cache = AssociativeCacheBase(associative=Associativity.SetAssociative, n_way=4,
-                                            cache_size=512 * Size.KB, cache_line_size=64 * Size.B,
+                                            cache_size=512 * Size.KB, cache_line_size=32 * Size.B,
                                             replace_algorithm=CacheReplaceAlgorithm.LRU)
 
-    def read_cache(self):
-        raise NotImplementedError
+    def read_cache(self, address: int) -> (int, bytes):
+        if self.L1Cache.access_cache(address):
+            return CacheLevel.L1, self.L1Cache.read_cache(address)
+        elif self.L2Cache.access_cache(address):
+            value = self.L2Cache.read_cache(address)
+            self.L1Cache.replace_cache_line(address, value)
+            return CacheLevel.L2, value
+        else:
+            return CacheLevel.NoCache, None
 
-    def write_cache(self):
-        raise NotImplementedError
+    def write_cache(self, address: int, value: bytes):
+        if self.L1Cache.access_cache(address):
+            self.L1Cache.write_cache(address, value)
+            return CacheLevel.L1
+        elif self.L2Cache.access_cache(address):
+            self.L2Cache.write_cache(address, value)
+            self.L1Cache.replace_cache_line(address, value)
+            return CacheLevel.L2
+        else:
+            self.L2Cache.replace_cache_line(address, value)
+            self.L1Cache.replace_cache_line(address, value)
+            return CacheLevel.NoCache
+
+    def flush(self):
+        self.L1Cache.flush()
+        self.L2Cache.flush()
+
+    def __contains__(self, item):
+        return item in self.L1Cache or item in self.L2Cache

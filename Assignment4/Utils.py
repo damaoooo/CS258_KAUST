@@ -13,6 +13,7 @@ class Size(IntEnum):
 def page_index(x: int) -> int:
     return x >> PageSize
 
+
 class Associativity(Enum):
     DirectMapped = 1
     FullyAssociative = 2
@@ -31,3 +32,9 @@ class OP(Enum):
     InstructionFetch = 2
     Ignore = 3
     Flush = 4
+
+
+class CacheLevel(Enum):
+    L1 = 1
+    L2 = 2
+    NoCache = 0
