@@ -7,6 +7,7 @@ from TLBCache import TLB
 from Cache import DirectCacheBase, AssociativeCacheBase
 from Utils import CacheReplaceAlgorithm, Associativity
 
+
 class MyTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -131,7 +132,7 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(self.tlb.query(virtual_address).frame_number, frame_number)
 
         new_mapping = {}
-        for i in range(self.tlb.size-1):
+        for i in range(self.tlb.size - 1):
             new_mapping[random.randint(0, 0xffffffff)] = random.randint(0, 0xffffffff) >> 12
 
         for virtual_address, frame_number in new_mapping.items():
@@ -151,9 +152,151 @@ class CacheTest(unittest.TestCase):
                                              cache_size=Size.KB * 512, cache_line_size=Size.B * 64,
                                              replace_algorithm=CacheReplaceAlgorithm.FIFO)
 
-    def test_direct_cache(self):
+    def test_direct_cache_l1(self, address: int = 0x12345678, value: bytes = b'\x12\x34\x56\x78'):
         self.l1_cache.flush()
-        self.l1_cache.access_cache()
+
+        if self.l1_cache.access_cache_free(address):
+            print(self.l1_cache.read_cache(address))
+        else:
+            self.l1_cache.replace_cache_line(address, value)
+
+        self.assertTrue(self.l1_cache.access_cache_free(address))
+        self.assertFalse(self.l1_cache.access_cache_free(address + (1 << 8)))
+        get_bytes = self.l1_cache.read_cache(address)
+        self.assertEqual(get_bytes, value)
+
+    def test_many_write_l1(self):
+        self.l1_cache.flush()
+        base_address = 0x12345678
+
+        wrote_value = {}
+
+        cache_line_offset = 1 << self.l1_cache.offset_bits
+
+        for i in range(self.l1_cache.cache_line_num):
+            varied_address = base_address + cache_line_offset * i
+            value = random.randbytes(8)
+            wrote_value[varied_address] = value
+            self.assertFalse(self.l1_cache.access_cache(varied_address))
+            self.l1_cache.replace_cache_line(varied_address, value)
+
+        for address in wrote_value:
+            self.assertEqual(self.l1_cache.read_cache(address), wrote_value[address])
+
+        for i in range(self.l1_cache.cache_line_num):
+            varied_address = base_address + cache_line_offset * (i + self.l1_cache.cache_line_num)
+            value = random.randbytes(8)
+            wrote_value[varied_address] = value
+            self.l1_cache.replace_cache_line(varied_address, value)
+            self.assertFalse(self.l1_cache.access_cache(base_address + cache_line_offset * i))
+
+        for address in wrote_value:
+            if address < base_address + cache_line_offset * self.l1_cache.cache_line_num:
+                self.assertFalse(self.l1_cache.access_cache(address))
+            else:
+                self.assertEqual(self.l1_cache.read_cache(address), wrote_value[address])
+
+    def test_direct_cache_l2(self, address: int = 0x12345678, value: bytes = b'\x12\x34\x56\x78'):
+        self.l2_cache.flush()
+
+        if self.l2_cache.access_cache(address):
+            print(self.l2_cache.read_cache(address))
+        else:
+            self.l2_cache.replace_cache_line(address, value)
+
+        self.assertTrue(self.l2_cache.access_cache(address))
+        get_bytes = self.l2_cache.read_cache(address)
+        self.assertEqual(get_bytes, value)
+
+    def test_single_write_l2_fifo(self):
+        self.l2_cache.replace_algorithm = CacheReplaceAlgorithm.FIFO
+        self.l2_cache.flush()
+        num_set = 1
+        tag = 0
+
+        wrote_value = {}
+
+        for i in range(self.l2_cache.n_way):
+            address = (num_set << self.l2_cache.offset_bits) + (tag << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+            self.assertFalse(self.l2_cache.access_cache(address))
+            value = random.randbytes(8)
+            self.l2_cache.replace_cache_line(address, value)
+            wrote_value[address] = value
+            tag += 1
+
+        for address in wrote_value:
+            self.assertEqual(self.l2_cache.read_cache(address), wrote_value[address])
+
+        new_wrote = {}
+        for i in range(self.l2_cache.n_way):
+            address = (num_set << self.l2_cache.offset_bits) + (tag << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+            old_address = (num_set << self.l2_cache.offset_bits) + (tag % self.l2_cache.n_way << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+            self.assertFalse(self.l2_cache.access_cache(address))
+            value = random.randbytes(8)
+            self.assertEqual(self.l2_cache.read_cache(old_address), wrote_value[old_address])
+            self.l2_cache.replace_cache_line(address, value)
+            self.assertFalse(self.l2_cache.access_cache(old_address))
+            self.assertTrue(self.l2_cache.access_cache(address))
+            new_wrote[address] = value
+
+            self.assertEqual(self.l2_cache.read_cache(address), value)
+            tag += 1
+
+    def test_single_write_lru(self):
+        self.l2_cache.replace_algorithm = CacheReplaceAlgorithm.LRU
+        self.l2_cache.flush()
+        num_set = 1
+        tag = 0
+
+        wrote_value = {}
+
+        for i in range(self.l2_cache.n_way):
+            address = (num_set << self.l2_cache.offset_bits) + (tag << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+            self.assertFalse(self.l2_cache.access_cache(address))
+            value = random.randbytes(8)
+            self.l2_cache.replace_cache_line(address, value)
+            wrote_value[address] = value
+            tag += 1
+
+        for address in wrote_value:
+            self.assertTrue(self.l2_cache.access_cache(address))
+            self.assertEqual(self.l2_cache.read_cache(address), wrote_value[address])
+
+        new_wrote = {}
+        for i in range(self.l2_cache.n_way):
+            address = (num_set << self.l2_cache.offset_bits) + (tag << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+            old_address = (num_set << self.l2_cache.offset_bits) + (tag % self.l2_cache.n_way << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+            self.assertFalse(self.l2_cache.access_cache(address))
+            value = random.randbytes(8)
+            self.assertEqual(self.l2_cache.read_cache(old_address), wrote_value[old_address])
+            self.l2_cache.replace_cache_line(address, value)
+            self.assertFalse(self.l2_cache.access_cache(old_address))
+            self.assertTrue(self.l2_cache.access_cache(address))
+            new_wrote[address] = value
+
+            self.assertEqual(self.l2_cache.read_cache(address), value)
+            tag += 1
+
+    def test_many_write_l2_fifo(self):
+        self.l2_cache.replace_algorithm = CacheReplaceAlgorithm.FIFO
+        self.l2_cache.flush()
+        set_index = 0
+        tag = 0
+        wrote_value = {}
+        for i in range(self.l2_cache.n_way):
+            # print(tag)
+            for j in range(self.l2_cache.num_sets):
+                address = (set_index << self.l2_cache.offset_bits) + (tag << (self.l2_cache.index_bits + self.l2_cache.offset_bits))
+                value = random.randbytes(8)
+                self.assertFalse(self.l2_cache.access_cache(address))
+                self.l2_cache.replace_cache_line(address, value)
+
+                wrote_value[address] = value
+                set_index += 1
+            tag += 1
+
+        for address in wrote_value:
+            self.assertEqual(self.l2_cache.read_cache(address), wrote_value[address])
 
 
 if __name__ == '__main__':

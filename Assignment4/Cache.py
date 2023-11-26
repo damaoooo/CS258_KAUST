@@ -6,6 +6,7 @@ import random
 
 
 class DirectCacheBase:
+    # If it is direct matched, there will be no replace algorithm
     def __init__(self, cache_size: int, cache_line_size: int, replace_algorithm: CacheReplaceAlgorithm):
         self.cache_size = cache_size
         self.cache_line_size = cache_line_size
@@ -22,16 +23,11 @@ class DirectCacheBase:
 
         self.helper_queue = deque()
 
-    def get_evict_index(self) -> int:
-        if self.replace_algorithm == CacheReplaceAlgorithm.Random:
-            return random.randint(0, self.cache_line_num - 1)
+    def get_evict_index(self, address: int) -> int:
+        # there is no evict algorithm in L1 Direct map cache
+        index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
 
-        if self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]:
-            replace_index: int = self.helper_queue.pop()
-            self.helper_queue.appendleft(replace_index)
-            return replace_index
-
-        raise ValueError(f"Unknown cache policy: {self.replace_algorithm}")
+        return index
 
     def access_cache(self, address: int, value: bytes = None) -> bool:
 
@@ -47,13 +43,18 @@ class DirectCacheBase:
         else:
             self.misses += 1
             return False
-            # if (self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]
-            #         and index not in self.helper_queue):
-            #     self.helper_queue.appendleft(index)
-            # self.replace_cache_line(tag, value)
 
-    def replace_cache_line(self, tag: int, value: bytes):
-        replace_index: int = self.get_evict_index()
+    def access_cache_free(self, address):
+        result = self.access_cache(address)
+        if result:
+            self.hits -= 1
+        else:
+            self.misses -= 1
+        return result
+
+    def replace_cache_line(self, address: int, value: bytes):
+        tag: int = address >> (self.offset_bits + self.index_bits)
+        replace_index: int = self.get_evict_index(address)
         self.cache[replace_index] = (tag, value)
 
     def flush(self):
@@ -79,33 +80,46 @@ class AssociativeCacheBase(DirectCacheBase):
         self.n_way = n_way
 
         self.num_sets = self.cache_line_num // self.n_way
-        self.cache = [[() for _ in range(self.n_way)] for _ in range(self.num_sets)]
+        self.index_bits = int(math.log2(self.num_sets))
+
+        self.cache: List[List[tuple]] = [[() for _ in range(self.n_way)] for _ in range(self.num_sets)]
         self.policy_data = [[0 for _ in range(self.n_way)] for _ in range(self.num_sets)]
 
     def replace_set_cache_line(self, set_index: int, tag: int, value: bytes):
         set_cache: List[Tuple] = self.cache[set_index]
         policy_data: List[int] = self.policy_data[set_index]
 
-        if self.replace_algorithm == CacheReplaceAlgorithm.Random:
-            replace_index: int = random.randint(0, self.n_way - 1)
+        is_full = True
+        empty_n_way = 0
+        for n_way in range(len(set_cache)):
+            if not set_cache[n_way]:
+                is_full = False
+                empty_n_way = n_way
+                break
 
-        elif self.replace_algorithm == CacheReplaceAlgorithm.LRU:
-            replace_index: int = policy_data.index(min(policy_data))
-
-        elif self.replace_algorithm == CacheReplaceAlgorithm.FIFO:
-            replace_index: int = policy_data.index(max(policy_data))
-
+        if is_full:
+            if self.replace_algorithm == CacheReplaceAlgorithm.Random:
+                replace_index: int = random.randint(0, self.n_way - 1)
+            elif self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]:
+                replace_index: int = policy_data.index(min(policy_data))
+            else:
+                replace_index: int = set_cache.index(()) if () in set_cache else 0
         else:
-            replace_index: int = set_cache.index(()) if () in set_cache else 0
+            replace_index: int = empty_n_way
 
         set_cache[replace_index] = (tag, value)
 
-        if self.replace_algorithm in [CacheReplaceAlgorithm.LRU, CacheReplaceAlgorithm.FIFO]:
+        if self.replace_algorithm == CacheReplaceAlgorithm.LRU:
             policy_data[replace_index] = self.hits
+        elif self.replace_algorithm == CacheReplaceAlgorithm.FIFO:
+            policy_data[replace_index] = self.hits + self.misses
         else:
             policy_data[replace_index] = 0
 
-    def access_cache(self, address: int, value: bytes = None) -> Union[None, bytes]:
+        self.policy_data[set_index] = policy_data
+        self.cache[set_index] = set_cache
+
+    def access_cache(self, address: int, value: bytes = None) -> bool:
         set_index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
         tag: int = address >> (self.offset_bits + self.index_bits)
 
@@ -117,9 +131,57 @@ class AssociativeCacheBase(DirectCacheBase):
             self.hits += 1
             if self.replace_algorithm == CacheReplaceAlgorithm.LRU:
                 self.policy_data[set_index][way] = self.hits
+            return True
         else:
             self.misses += 1
-            self.replace_set_cache_line(set_index, tag, value)
+            return False
+            # self.replace_set_cache_line(set_index, tag, value)
+
+    def read_cache(self, address: int):
+        assert self.access_cache_free(address)
+        set_index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        tag: int = address >> (self.offset_bits + self.index_bits)
+        set_cache: List[Tuple] = self.cache[set_index]
+        tags_in_set: List[int] = [line[0] for line in set_cache if line]
+        way = tags_in_set.index(tag)
+        return set_cache[way][1]
+
+    def write_cache(self, address: int, value: bytes):
+        assert self.access_cache_free(address)
+        set_index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        tag: int = address >> (self.offset_bits + self.index_bits)
+        set_cache: List[tuple] = self.cache[set_index]
+        tags_in_set: List[int] = [line[0] for line in set_cache if line]
+        way: int = tags_in_set.index(tag)
+        set_cache[way] = (tag, value)
+        self.cache[set_index] = set_cache
+
+    def replace_cache_line(self, address: int, value: bytes):
+        set_index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        tag: int = address >> (self.offset_bits + self.index_bits)
+
+        self.replace_set_cache_line(set_index, tag, value)
+
+    def flush(self):
+        self.cache: List[List[tuple]] = [[() for _ in range(self.n_way)] for _ in range(self.num_sets)]
+        self.policy_data = [[0 for _ in range(self.n_way)] for _ in range(self.num_sets)]
+
+    def access_cache_free(self, address):
+        set_index: int = (address >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        tag: int = address >> (self.offset_bits + self.index_bits)
+        set_cache: List[Tuple] = self.cache[set_index]
+        tags_in_set: List[int] = [line[0] for line in set_cache if line]
+        way = tags_in_set.index(tag)
+        before_hit = self.policy_data[set_index][way]
+        result = self.access_cache(address)
+        if result:
+            self.hits -= 1
+            if self.replace_algorithm == CacheReplaceAlgorithm.LRU:
+
+                self.policy_data[set_index][way] = before_hit
+        else:
+            self.misses -= 1
+        return result
 
 
 class Level2Cache:
