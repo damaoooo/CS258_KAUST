@@ -2,3 +2,4 @@ m5out/
 *.pyc
 *.din
 *.log
+*.pickle
