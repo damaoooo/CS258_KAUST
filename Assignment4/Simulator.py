@@ -2,12 +2,14 @@ from Page import MultiLevelPageTable
 from TLBCache import TLB
 from enum import Enum
 import matplotlib.pyplot as plt
+import pickle
 from collections import Counter
 from dataclasses import dataclass
 from typing import List
 from Utils import *
 from Memory import Memory
 from Cache import Level2Cache, SplitCache
+import multiprocessing
 
 
 class Instruction:
@@ -76,14 +78,14 @@ class Simulator:
 
         if self.config.separate_instruction_data:
             self.cache = SplitCache(
-            l1_cache_size=config.L1_cache_size,
-            l1_cache_line_size=config.L1_cacheline_size,
-            l1_cache_policy=config.L1_replace_algorithm,
-            l2_cache_size=config.L2_cache_size,
-            l2_cache_line_size=config.L2_cacheline_size,
-            l2_cache_policy=config.L2_replace_algorithm,
-            l2_cache_associativity=config.L2_associativity,
-            l2_n_way=config.L2_n_way
+                l1_cache_size=config.L1_cache_size,
+                l1_cache_line_size=config.L1_cacheline_size,
+                l1_cache_policy=config.L1_replace_algorithm,
+                l2_cache_size=config.L2_cache_size,
+                l2_cache_line_size=config.L2_cacheline_size,
+                l2_cache_policy=config.L2_replace_algorithm,
+                l2_cache_associativity=config.L2_associativity,
+                l2_n_way=config.L2_n_way
             )
         else:
             self.cache = Level2Cache(
@@ -302,7 +304,70 @@ class Simulator:
         print(Counter(instruction_address))
 
 
-if __name__ == '__main__':
+def test_case_1():
+    config = SimulatorConfigure()
+    config.file_path = "./spec_benchmark/008.espresso.din"
+    total_result = {"Split": {}, "Unified": {}}
+    for split, name in [(True, "Split"), (False, "Unified")]:
+        for cache_line_size in [32 * Size.B, 64 * Size.B, 128 * Size.B]:
+            for l1_size, l1_latency in [(32 * Size.KB, 1), (64 * Size.KB, 2)]:
+                for l2_size, l2_latency in [(512 * Size.KB, 8), (1024 * Size.KB, 12), (2 * 1024 * Size.KB, 16)]:
+                    for tlb_size in [8, 16]:
+                        config.separate_instruction_data = split
+                        config.L2_replace_algorithm = CacheReplaceAlgorithm.FIFO
+                        config.L2_n_way = 4
+                        config.TLB_size = tlb_size
+                        config.L1_cacheline_size = cache_line_size
+                        config.L1_cache_size = l1_size
+                        config.L1_cache_access = l1_latency
+                        config.L2_cacheline_size = cache_line_size
+                        config.L2_cache_size = l2_size
+                        config.L2_cache_access = l2_latency
+                        simulator = Simulator(config)
+                        simulator.parse_file()
+                        simulator.start_simulation()
+                        res = simulator.result()
+                        total_result[name][(cache_line_size, l1_size, l2_size, tlb_size)] = res
+
+    print(total_result)
+    with open("case1.pickle", 'wb') as file:
+        pickle.dump(total_result, file)
+        file.close()
+
+
+def test_case_2():
+    config = SimulatorConfigure()
+    config.file_path = "./spec_benchmark/008.espresso.din"
+    total_result = {"FIFO": {}, "LRU": {}, "Random": {}}
+    for replace_algorithm, name in [(CacheReplaceAlgorithm.FIFO, "FIFO"), (CacheReplaceAlgorithm.LRU, "LRU"),
+                                    (CacheReplaceAlgorithm.Random, "Random")]:
+        for cache_line_size in [32 * Size.B, 64 * Size.B, 128 * Size.B]:
+            for l1_size, l1_latency in [(32 * Size.KB, 1), (64 * Size.KB, 2)]:
+                for l2_size, l2_latency in [(512 * Size.KB, 8), (1024 * Size.KB, 12), (2 * 1024 * Size.KB, 16)]:
+                    for tlb_size in [8, 16]:
+                        config.separate_instruction_data = True
+                        config.L2_replace_algorithm = replace_algorithm
+                        config.L2_n_way = 4
+                        config.TLB_size = tlb_size
+                        config.L1_cacheline_size = cache_line_size
+                        config.L1_cache_size = l1_size
+                        config.L1_cache_access = l1_latency
+                        config.L2_cacheline_size = cache_line_size
+                        config.L2_cache_size = l2_size
+                        config.L2_cache_access = l2_latency
+                        simulator = Simulator(config)
+                        simulator.parse_file()
+                        simulator.start_simulation()
+                        res = simulator.result()
+                        total_result[name][(cache_line_size, l1_size, l2_size, tlb_size)] = res
+
+    print(total_result)
+    with open("case2.pickle", 'wb') as file:
+        pickle.dump(total_result, file)
+        file.close()
+
+
+def test_case_3():
     config = SimulatorConfigure()
     config.file_path = "./spec_benchmark/008.espresso.din"
     total_result = {"Direct": {}, "2-way": {}, "4-way": {}}
@@ -328,3 +393,19 @@ if __name__ == '__main__':
                         total_result[name][(cache_line_size, l1_size, l2_size, tlb_size)] = res
 
     print(total_result)
+    with open("case3.pickle", 'wb') as file:
+        pickle.dump(total_result, file)
+        file.close()
+
+
+if __name__ == '__main__':
+    t1 = multiprocessing.Process(target=test_case_1)
+    t2 = multiprocessing.Process(target=test_case_2)
+    t3 = multiprocessing.Process(target=test_case_3)
+    t1.start()
+    t2.start()
+    t3.start()
+    t1.join()
+    t2.join()
+    t3.join()
+
