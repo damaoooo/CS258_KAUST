@@ -183,12 +183,12 @@ if __name__ == '__main__':
     d2_cache_sizes = [(512 * 1024, 8), (1024 * 1024, 12), (2 * 1024 * 1024, 16)]  # (Size, Access Time)
     line_sizes = [32, 64, 128]
 
-    cache_policies = ["Random", "LRU", "FIFO"]
+    # cache_policies = ["Random", "LRU", "FIFO"]
+    cache_policy = "FIFO"
 
     for d1_cache_size, d1_access_time in d1_cache_sizes:
         for d2_cache_size, d2_access_time in d2_cache_sizes:
             for line_size in line_sizes:
-                for cache_policy in cache_policies:
-                    run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file,
-                                  cache_policy)
+                # for cache_policy in cache_policies:
+                run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy)
                 print("-------------------------------------")
