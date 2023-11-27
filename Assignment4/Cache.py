@@ -187,12 +187,13 @@ class AssociativeCacheBase(DirectCacheBase):
 
 
 class Level2Cache:
-    def __init__(self):
-        self.L1Cache = DirectCacheBase(cache_size=32 * Size.KB, cache_line_size=32 * Size.B,
-                                       replace_algorithm=CacheReplaceAlgorithm.LRU)
-        self.L2Cache = AssociativeCacheBase(associative=Associativity.SetAssociative, n_way=4,
-                                            cache_size=512 * Size.KB, cache_line_size=32 * Size.B,
-                                            replace_algorithm=CacheReplaceAlgorithm.LRU)
+    def __init__(self, l1_cache_size, l1_cache_line_size, l1_cache_policy, l2_cache_size, l2_cache_line_size,
+                 l2_cache_policy, l2_cache_associativity, l2_n_way):
+        self.L1Cache = DirectCacheBase(cache_size=l1_cache_size, cache_line_size=l1_cache_line_size,
+                                       replace_algorithm=l1_cache_policy)
+        self.L2Cache = AssociativeCacheBase(associative=l2_cache_associativity, n_way=l2_n_way,
+                                            cache_size=l2_cache_size, cache_line_size=l2_cache_line_size,
+                                            replace_algorithm=l2_cache_policy)
 
     def read_cache(self, address: int) -> (int, bytes):
         if self.L1Cache.access_cache(address):

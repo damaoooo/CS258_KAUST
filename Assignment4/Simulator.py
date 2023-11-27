@@ -19,12 +19,12 @@ class Instruction:
 class SimulatorConfigure:
     file_path: str = "./Spec_Benchmark/013.spice2g6.din"
 
-    L1_cacheline_size: int = 32 * Size.B
+    L1_cacheline_size: int = 128 * Size.B
     L1_cache_size: int = 32 * Size.KB
 
     L1_cache_access: int = 1
 
-    L2_cacheline_size: int = 32 * Size.B
+    L2_cacheline_size: int = L1_cacheline_size
     L2_cache_size: int = 512 * Size.KB
 
     L2_cache_access: int = 8
@@ -33,7 +33,7 @@ class SimulatorConfigure:
     L2_n_way: int = 4
 
     L1_replace_algorithm: int = CacheReplaceAlgorithm.LRU
-    L2_replace_algorithm: int = CacheReplaceAlgorithm.LRU
+    L2_replace_algorithm: int = CacheReplaceAlgorithm.FIFO
 
     TLB_size: int = 16
     TLB_access: int = 1
@@ -70,7 +70,16 @@ class Simulator:
         self.multi_page = MultiLevelPageTable(self.memory, levels=[6, 8, 6])
         self.tlb = TLB(config.TLB_size)
 
-        self.cache = Level2Cache()
+        self.cache = Level2Cache(
+            l1_cache_size=config.L1_cache_size,
+            l1_cache_line_size=config.L1_cacheline_size,
+            l1_cache_policy=config.L1_replace_algorithm,
+            l2_cache_size=config.L2_cache_size,
+            l2_cache_line_size=config.L2_cacheline_size,
+            l2_cache_policy=config.L2_replace_algorithm,
+            l2_cache_associativity=config.L2_associativity,
+            l2_n_way=config.L2_n_way
+        )
 
         self.instructions = self.parse_file()
 
@@ -78,13 +87,13 @@ class Simulator:
 
         self.cycle = 0
 
-        self.tlb_miss = 0
+        self.tlb_hit = 0
         self.tlb_access = 0
 
-        self.l1_miss = 0
+        self.l1_hit = 0
         self.l1_access = 0
 
-        self.l2_miss = 0
+        self.l2_hit = 0
         self.l2_access = 0
 
     def parse_file(self):
@@ -128,12 +137,12 @@ class Simulator:
         self.tlb_access += 1
 
         if v_address in self.tlb:
+            self.tlb_hit += 1
             p_address = self.tlb.query(v_address).frame_number
         else:
-            self.tlb_miss += 1
             p_address = self.page_walk(v_address)
             while p_address == 0:
-                # print("Oops Zero p_address!")
+                print("Oops Zero p_address!")
                 p_address = self.page_walk(v_address)
             self.tlb.update(v_address, p_address)
         # print(hex(v_address), "->", hex(p_address))
@@ -147,9 +156,9 @@ class Simulator:
         aligned_size = address - aligned_address
         # padding
         padding_size = 0
-        if aligned_size % self.config.L1_cacheline_size:
-            aligned_size += aligned_address % self.config.L1_cacheline_size
-            padding_size = aligned_address % self.config.L1_cacheline_size
+        while aligned_size % self.config.L1_cacheline_size:
+            aligned_size += 1
+            padding_size += 1
 
         needed_addresses = address_needed(aligned_address, aligned_size + need_size + padding_size, self.config.L1_cacheline_size)
 
@@ -161,21 +170,22 @@ class Simulator:
                 result += r_result
                 if cache_level == CacheLevel.L1:
                     self.cycle += self.config.L1_cache_access
+                    self.l1_hit += 1
                     self.l1_access += 1
                 elif cache_level == CacheLevel.L2:
-                    self.l1_miss += 1
                     self.l1_access += 1
                     self.l2_access += 1
+                    self.l2_hit += 1
                     self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
                 else:
                     self.l1_access += 1
-                    self.l1_miss += 1
                     self.l2_access += 1
-                    self.l2_miss += 1
             else:
                 if address not in self.memory:
                     self.memory.allocate_page_at_address(address)
                 result += self.memory.read_bytes(address, self.config.L1_cacheline_size)
+                self.l1_access += 1
+                self.l2_access += 1
                 self.cache.write_cache(address, result[-self.config.L1_cacheline_size:])
                 self.cycle += self.config.Memory_access + self.config.L2_cache_access + self.config.L1_cache_access
 
@@ -188,9 +198,9 @@ class Simulator:
         aligned_size = address - aligned_address
         data = b'\x00' * aligned_size + data
         need_size = len(data)
-        if self.config.L1_cacheline_size - need_size % self.config.L1_cacheline_size:
-            data += b'\x00' * (self.config.L1_cacheline_size - need_size % self.config.L1_cacheline_size)
-        need_size = len(data)
+        while need_size % self.config.L1_cacheline_size:
+            data += b'\x00'
+            need_size = len(data)
         assert need_size % self.config.L1_cacheline_size == 0
 
         needed_address = address_needed(aligned_address, need_size, self.config.L1_cacheline_size)
@@ -198,18 +208,25 @@ class Simulator:
                        range(0, len(data), self.config.L1_cacheline_size)]
 
         for idx, address in enumerate(needed_address):
-            if len(sliced_data[idx]) != 32:
-                print("Oops")
+            if len(sliced_data[idx]) != self.cache.L1Cache.cache_line_size:
+                print("Oops, not aligned!", len(sliced_data[idx]), self.cache.L1Cache.cache_line_size)
             if address in self.cache:
                 cache_level = self.cache.write_cache(address, sliced_data[idx])
                 if cache_level == CacheLevel.L1:
+                    self.l1_access += 1
+                    self.l1_hit += 1
                     self.cycle += self.config.L1_cache_access
                 elif cache_level == CacheLevel.L2:
+                    self.l1_access += 1
+                    self.l2_access += 1
+                    self.l2_hit += 1
                     self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
             else:
                 self.memory.write_bytes(address, sliced_data[idx])
                 # Not Count, run simultaneously
                 self.cache.write_cache(address, sliced_data[idx])
+                self.l1_access += 1
+                self.l2_access += 1
                 self.cycle += self.config.Memory_access + self.config.L2_cache_access + self.config.L1_cache_access
 
     def start_simulation(self):
@@ -229,10 +246,11 @@ class Simulator:
                 pass
 
     def result(self):
-        print(f"TLB Miss Rate: {self.tlb_miss / self.tlb_access}")
-        print(f"L1 Miss Rate: {self.l1_miss / self.l1_access}")
-        print(f"L2 Miss Rate: {self.l2_miss / self.l2_access}")
-        print(f"Average Cycle: {self.cycle / len(self.instructions)}")
+        print(f"TLB Hit Rate: {self.tlb_hit / self.tlb_access, self.tlb_hit, self.tlb_access}")
+        print(f"L1 Hit Rate: {self.l1_hit / self.l1_access, self.l1_hit, self.l1_access}")
+        print(f"L2 Hit Rate: {self.l2_hit / self.l2_access, self.l2_hit, self.l2_access}")
+        print(f"Total Cycles: {self.cycle}")
+        print(f"Average Cycles: {self.cycle / len(self.instructions)}")
 
 
 if __name__ == '__main__':
