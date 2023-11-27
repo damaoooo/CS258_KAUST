@@ -321,6 +321,7 @@ class SimulatorTest(unittest.TestCase):
 
     def test_dry_run(self):
         self.simulator.start_simulation()
+        print(self.simulator.cycle)
 
 
 if __name__ == '__main__':

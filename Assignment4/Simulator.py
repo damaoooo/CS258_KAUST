@@ -22,8 +22,12 @@ class SimulatorConfigure:
     L1_cacheline_size: int = 32 * Size.B
     L1_cache_size: int = 32 * Size.KB
 
+    L1_cache_access: int = 1
+
     L2_cacheline_size: int = 32 * Size.B
     L2_cache_size: int = 512 * Size.KB
+
+    L2_cache_access: int = 8
 
     L2_associativity: int = Associativity.SetAssociative
     L2_n_way: int = 4
@@ -32,6 +36,9 @@ class SimulatorConfigure:
     L2_replace_algorithm: int = CacheReplaceAlgorithm.LRU
 
     TLB_size: int = 16
+    TLB_access: int = 1
+
+    Memory_access: int = 100
 
 
 def parse_instructions(instruction: str):
@@ -68,6 +75,8 @@ class Simulator:
         self.instructions = self.parse_file()
 
         assert self.cache.L1Cache.cache_line_size == self.cache.L2Cache.cache_line_size
+
+        self.cycle = 0
 
     def parse_file(self):
         instruction_list: List[Instruction] = []
@@ -106,6 +115,7 @@ class Simulator:
         return physical_address
 
     def address_translate(self, v_address: int):
+        self.cycle += 1
         if v_address in self.tlb:
             p_address = self.tlb.query(v_address).frame_number
         else:
@@ -124,10 +134,16 @@ class Simulator:
 
         for idx, address in enumerate(needed_addresses):
             if address in self.cache:
-                result += self.cache.read_cache(address)[1]
+                cache_level, r_result = self.cache.read_cache(address)
+                result += r_result
+                if cache_level == CacheLevel.L1:
+                    self.cycle += self.config.L1_cache_access
+                elif cache_level == CacheLevel.L2:
+                    self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
             else:
                 result += self.memory.read_bytes(address, self.config.L1_cacheline_size)
                 self.cache.write_cache(address, result[-self.config.L1_cacheline_size:])
+                self.cycle += self.config.Memory_access + self.config.L2_cache_access + self.config.L1_cache_access
 
         result = result[aligned_size:aligned_size + size]
         return result
@@ -145,37 +161,30 @@ class Simulator:
 
         for idx, address in enumerate(needed_address):
             if address in self.cache:
-                self.cache.write_cache(address, sliced_data[idx])
+                cache_level = self.cache.write_cache(address, sliced_data[idx])
+                if cache_level == CacheLevel.L1:
+                    self.cycle += self.config.L1_cache_access
+                elif cache_level == CacheLevel.L2:
+                    self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
             else:
                 self.memory.write_bytes(address, sliced_data[idx])
+                # Not Count, run simultaneously
                 self.cache.write_cache(address, sliced_data[idx])
-
-    def read_bytes(self, address: int, size: int = 4):
-        p_address = self.address_translate(address)
-        if p_address in self.cache:
-            return self.cache.read_cache(p_address, size)
-
-        return self.memory.read_bytes(p_address, size)
-
-    def write_bytes(self, address: int, value: bytes):
-        p_address = self.address_translate(address)
-        if p_address in self.cache:
-            self.cache.write_cache(p_address, value)
-        else:
-            self.memory.write_bytes(p_address, value)
+                self.cycle += self.config.Memory_access + self.config.L2_cache_access + self.config.L1_cache_access
 
     def start_simulation(self):
         for instruction in self.instructions:
             if instruction.op == OP.MemoryRead:
-                self.memory.read_bytes(self.address_translate(instruction.address), 4)
+                self.simu_read_data(self.address_translate(instruction.address), 4)
+                # self.memory.read_bytes(self.address_translate(instruction.address), 4)
             elif instruction.op == OP.MemoryWrite:
-                self.memory.write_bytes(self.address_translate(instruction.address),
+                self.simu_write_data(self.address_translate(instruction.address),
                                         instruction.value.to_bytes(4, 'big'))
             elif instruction.op == OP.Flush:
                 self.cache.flush()
                 self.tlb.flush()
             elif instruction.op == OP.InstructionFetch:
-                self.memory.read_bytes(self.address_translate(instruction.address), 4)
+                self.simu_read_data(self.address_translate(instruction.address), 4)
             else:
                 pass
 
