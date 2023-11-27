@@ -233,9 +233,13 @@ class SplitCache:
                                        replace_algorithm=l1_cache_policy)
         self.L1ICache = DirectCacheBase(cache_size=l1_cache_size // 2, cache_line_size=l1_cache_line_size,
                                        replace_algorithm=l1_cache_policy)
-        self.L2Cache = AssociativeCacheBase(associative=l2_cache_associativity, n_way=l2_n_way,
-                                            cache_size=l2_cache_size, cache_line_size=l2_cache_line_size,
-                                            replace_algorithm=l2_cache_policy)
+        if l2_n_way > 1:
+            self.L2Cache = AssociativeCacheBase(associative=l2_cache_associativity, n_way=l2_n_way,
+                                                cache_size=l2_cache_size, cache_line_size=l2_cache_line_size,
+                                                replace_algorithm=l2_cache_policy)
+        else:
+            self.L2Cache = DirectCacheBase(cache_size=l2_cache_size, cache_line_size=l2_cache_line_size,
+                                           replace_algorithm=l2_cache_policy)
     def read_cache(self, address: int) -> (int, bytes):
         if self.L1DCache.access_cache(address):
             return CacheLevel.L1, self.L1DCache.read_cache(address)

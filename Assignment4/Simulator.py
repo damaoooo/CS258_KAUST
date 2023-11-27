@@ -305,23 +305,26 @@ class Simulator:
 if __name__ == '__main__':
     config = SimulatorConfigure()
     config.file_path = "./spec_benchmark/008.espresso.din"
-    total_result = {"Random": {}, "LRU": {}, "FIFO":{}}
-    for replace_algorithm, name in [(CacheReplaceAlgorithm.Random, "Random"), (CacheReplaceAlgorithm.LRU, "LRU"), (CacheReplaceAlgorithm.FIFO, "FIFO")]:
+    total_result = {"Direct": {}, "2-way": {}, "4-way": {}}
+    for n_way, name in [(4, "4-way"), (2, "2-way"), (1, "Direct")]:
         for cache_line_size in [32 * Size.B, 64 * Size.B, 128 * Size.B]:
             for l1_size, l1_latency in [(32 * Size.KB, 1), (64 * Size.KB, 2)]:
                 for l2_size, l2_latency in [(512 * Size.KB, 8), (1024 * Size.KB, 12), (2 * 1024 * Size.KB, 16)]:
-                    config.separate_instruction_data = True
-                    config.L2_replace_algorithm = replace_algorithm
-                    config.L1_cacheline_size = cache_line_size
-                    config.L1_cache_size = l1_size
-                    config.L1_cache_access = l1_latency
-                    config.L2_cacheline_size = cache_line_size
-                    config.L2_cache_size = l2_size
-                    config.L2_cache_access = l2_latency
-                    simulator = Simulator(config)
-                    instructions = simulator.parse_file()
-                    simulator.start_simulation()
-                    res = simulator.result()
-                    total_result[name][(cache_line_size, l1_size, l2_size)] = res
+                    for tlb_size in [8, 16]:
+                        config.separate_instruction_data = True
+                        config.L2_replace_algorithm = CacheReplaceAlgorithm.Random
+                        config.L2_n_way = n_way
+                        config.TLB_size = tlb_size
+                        config.L1_cacheline_size = cache_line_size
+                        config.L1_cache_size = l1_size
+                        config.L1_cache_access = l1_latency
+                        config.L2_cacheline_size = cache_line_size
+                        config.L2_cache_size = l2_size
+                        config.L2_cache_access = l2_latency
+                        simulator = Simulator(config)
+                        instructions = simulator.parse_file()
+                        simulator.start_simulation()
+                        res = simulator.result()
+                        total_result[name][(cache_line_size, l1_size, l2_size, tlb_size)] = res
 
     print(total_result)
