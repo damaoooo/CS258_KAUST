@@ -224,3 +224,53 @@ class Level2Cache:
 
     def __contains__(self, item):
         return item in self.L1Cache or item in self.L2Cache
+
+
+class SplitCache:
+    def __init__(self, l1_cache_size, l1_cache_line_size, l1_cache_policy, l2_cache_size, l2_cache_line_size,
+                 l2_cache_policy, l2_cache_associativity, l2_n_way):
+        self.L1DCache = DirectCacheBase(cache_size=l1_cache_size // 2, cache_line_size=l1_cache_line_size,
+                                       replace_algorithm=l1_cache_policy)
+        self.L1ICache = DirectCacheBase(cache_size=l1_cache_size // 2, cache_line_size=l1_cache_line_size,
+                                       replace_algorithm=l1_cache_policy)
+        self.L2Cache = AssociativeCacheBase(associative=l2_cache_associativity, n_way=l2_n_way,
+                                            cache_size=l2_cache_size, cache_line_size=l2_cache_line_size,
+                                            replace_algorithm=l2_cache_policy)
+    def read_cache(self, address: int) -> (int, bytes):
+        if self.L1DCache.access_cache(address):
+            return CacheLevel.L1, self.L1DCache.read_cache(address)
+        elif self.L2Cache.access_cache(address):
+            value = self.L2Cache.read_cache(address)
+            self.L1DCache.replace_cache_line(address, value)
+            return CacheLevel.L2, value
+        else:
+            return CacheLevel.NoCache, None
+
+    def write_cache(self, address: int, value: bytes):
+        if self.L1DCache.access_cache(address):
+            self.L1DCache.write_cache(address, value)
+            return CacheLevel.L1
+        elif self.L2Cache.access_cache(address):
+            self.L2Cache.write_cache(address, value)
+            self.L1DCache.replace_cache_line(address, value)
+            return CacheLevel.L2
+        else:
+            self.L2Cache.replace_cache_line(address, value)
+            self.L1DCache.replace_cache_line(address, value)
+            return CacheLevel.NoCache
+
+    def read_instruction(self, address: int):
+        if self.L1ICache.access_cache(address):
+            return CacheLevel.L1, self.L1ICache.read_cache(address)
+        elif self.L2Cache.access_cache(address):
+            value = self.L2Cache.read_cache(address)
+            self.L1ICache.replace_cache_line(address, value)
+            return CacheLevel.L2, value
+
+    def flush(self):
+        self.L1DCache.flush()
+        self.L1ICache.flush()
+        self.L2Cache.flush()
+
+    def __contains__(self, item):
+        return item in self.L1DCache or item in self.L2Cache

@@ -1,11 +1,13 @@
 from Page import MultiLevelPageTable
 from TLBCache import TLB
 from enum import Enum
+import matplotlib.pyplot as plt
+from collections import Counter
 from dataclasses import dataclass
 from typing import List
 from Utils import *
 from Memory import Memory
-from Cache import Level2Cache
+from Cache import Level2Cache, SplitCache
 
 
 class Instruction:
@@ -19,7 +21,9 @@ class Instruction:
 class SimulatorConfigure:
     file_path: str = "./Spec_Benchmark/013.spice2g6.din"
 
-    L1_cacheline_size: int = 128 * Size.B
+    separate_instruction_data: bool = True
+
+    L1_cacheline_size: int = 32 * Size.B
     L1_cache_size: int = 32 * Size.KB
 
     L1_cache_access: int = 1
@@ -70,7 +74,8 @@ class Simulator:
         self.multi_page = MultiLevelPageTable(self.memory, levels=[6, 8, 6])
         self.tlb = TLB(config.TLB_size)
 
-        self.cache = Level2Cache(
+        if self.config.separate_instruction_data:
+            self.cache = SplitCache(
             l1_cache_size=config.L1_cache_size,
             l1_cache_line_size=config.L1_cacheline_size,
             l1_cache_policy=config.L1_replace_algorithm,
@@ -79,11 +84,20 @@ class Simulator:
             l2_cache_policy=config.L2_replace_algorithm,
             l2_cache_associativity=config.L2_associativity,
             l2_n_way=config.L2_n_way
-        )
+            )
+        else:
+            self.cache = Level2Cache(
+                l1_cache_size=config.L1_cache_size,
+                l1_cache_line_size=config.L1_cacheline_size,
+                l1_cache_policy=config.L1_replace_algorithm,
+                l2_cache_size=config.L2_cache_size,
+                l2_cache_line_size=config.L2_cacheline_size,
+                l2_cache_policy=config.L2_replace_algorithm,
+                l2_cache_associativity=config.L2_associativity,
+                l2_n_way=config.L2_n_way
+            )
 
         self.instructions = self.parse_file()
-
-        assert self.cache.L1Cache.cache_line_size == self.cache.L2Cache.cache_line_size
 
         self.cycle = 0
 
@@ -149,6 +163,30 @@ class Simulator:
 
         return p_address
 
+    def simu_read_instruction(self, address: int):
+        if address in self.cache:
+            cache_level, result = self.cache.read_cache(address)
+            if cache_level == CacheLevel.L1:
+                self.cycle += self.config.L1_cache_access
+                self.l1_hit += 1
+                self.l1_access += 1
+            elif cache_level == CacheLevel.L2:
+                self.l1_access += 1
+                self.l2_access += 1
+                self.l2_hit += 1
+                self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
+            else:
+                self.l1_access += 1
+                self.l2_access += 1
+        else:
+            if address not in self.memory:
+                self.memory.allocate_page_at_address(address)
+            result = self.memory.read_bytes(address, self.config.L1_cacheline_size)
+            self.l1_access += 1
+            self.l2_access += 1
+            self.cache.write_cache(address, result)
+            self.cycle += self.config.Memory_access + self.config.L2_cache_access + self.config.L1_cache_access
+
     def simu_read_data(self, address: int, size: int = 4):
         need_size = size
         # p_address = self.address_translate(address)
@@ -160,7 +198,8 @@ class Simulator:
             aligned_size += 1
             padding_size += 1
 
-        needed_addresses = address_needed(aligned_address, aligned_size + need_size + padding_size, self.config.L1_cacheline_size)
+        needed_addresses = address_needed(aligned_address, aligned_size + need_size + padding_size,
+                                          self.config.L1_cacheline_size)
 
         result = b''
 
@@ -208,7 +247,7 @@ class Simulator:
                        range(0, len(data), self.config.L1_cacheline_size)]
 
         for idx, address in enumerate(needed_address):
-            if len(sliced_data[idx]) != self.cache.L1Cache.cache_line_size:
+            if len(sliced_data[idx]) != self.config.L1_cacheline_size:
                 print("Oops, not aligned!", len(sliced_data[idx]), self.cache.L1Cache.cache_line_size)
             if address in self.cache:
                 cache_level = self.cache.write_cache(address, sliced_data[idx])
@@ -236,7 +275,7 @@ class Simulator:
                 # self.memory.read_bytes(self.address_translate(instruction.address), 4)
             elif instruction.op == OP.MemoryWrite:
                 self.simu_write_data(self.address_translate(instruction.address),
-                                        instruction.value.to_bytes(4, 'big'))
+                                     instruction.value.to_bytes(4, 'big'))
             elif instruction.op == OP.Flush:
                 self.cache.flush()
                 self.tlb.flush()
@@ -251,12 +290,38 @@ class Simulator:
         print(f"L2 Hit Rate: {self.l2_hit / self.l2_access, self.l2_hit, self.l2_access}")
         print(f"Total Cycles: {self.cycle}")
         print(f"Average Cycles: {self.cycle / len(self.instructions)}")
+        return {"TLB_hit": self.tlb_hit, "TLB_access": self.tlb_access,
+                "L1_hit": self.l1_hit, "L1_access": self.l1_access,
+                "L2_hit": self.l2_hit, "L2_access": self.l2_access,
+                "Total_Cycles": self.cycle, "Average_Cycles": self.cycle / len(self.instructions)}
+
+    def plot_instruction_address_range(self):
+        instruction_address = []
+        for instruction in self.instructions:
+            instruction_address.append(instruction.address >> 12)
+        print(Counter(instruction_address))
 
 
 if __name__ == '__main__':
     config = SimulatorConfigure()
     config.file_path = "./spec_benchmark/008.espresso.din"
-    simulator = Simulator(config)
-    instructions = simulator.parse_file()
-    simulator.start_simulation()
-    simulator.result()
+    total_result = {"Random": {}, "LRU": {}, "FIFO":{}}
+    for replace_algorithm, name in [(CacheReplaceAlgorithm.Random, "Random"), (CacheReplaceAlgorithm.LRU, "LRU"), (CacheReplaceAlgorithm.FIFO, "FIFO")]:
+        for cache_line_size in [32 * Size.B, 64 * Size.B, 128 * Size.B]:
+            for l1_size, l1_latency in [(32 * Size.KB, 1), (64 * Size.KB, 2)]:
+                for l2_size, l2_latency in [(512 * Size.KB, 8), (1024 * Size.KB, 12), (2 * 1024 * Size.KB, 16)]:
+                    config.separate_instruction_data = True
+                    config.L2_replace_algorithm = replace_algorithm
+                    config.L1_cacheline_size = cache_line_size
+                    config.L1_cache_size = l1_size
+                    config.L1_cache_access = l1_latency
+                    config.L2_cacheline_size = cache_line_size
+                    config.L2_cache_size = l2_size
+                    config.L2_cache_access = l2_latency
+                    simulator = Simulator(config)
+                    instructions = simulator.parse_file()
+                    simulator.start_simulation()
+                    res = simulator.result()
+                    total_result[name][(cache_line_size, l1_size, l2_size)] = res
+
+    print(total_result)
