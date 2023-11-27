@@ -213,7 +213,8 @@ class Simulator:
 
 if __name__ == '__main__':
     config = SimulatorConfigure()
-    config.file_path = "./Spec_Benchmark/013.spice2g6.din"
+    config.file_path = "./spec_benchmark/008.espresso.din"
     simulator = Simulator(config)
     instructions = simulator.parse_file()
+    simulator.start_simulation()
     print(len(instructions))

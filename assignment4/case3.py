@@ -16,7 +16,6 @@ class CacheSimulatorBase:
         self.offset_bits = int(math.log2(self.line_size))
         self.index_bits = int(math.log2(self.num_lines))
 
-        # Statistics
         self.hits = 0
         self.misses = 0
 
@@ -96,9 +95,9 @@ class D1CacheSimulator(CacheSimulatorBase):
 
 
 class D2CacheSimulator(CacheSimulatorBase):
-    def __init__(self, cache_size, line_size, cache_policy):
+    def __init__(self, cache_size, line_size, cache_policy,associativity):
         super().__init__(cache_size, line_size, cache_policy)
-        self.associativity = 4  # 4-way set associative
+        self.associativity = associativity  # 4-way set associative
         self.num_sets = self.cache_size // (self.line_size * self.associativity)
         self.cache = [[None] * self.associativity for _ in range(self.num_sets)]
         self.set_index_bits = int(math.log2(self.num_sets))
@@ -156,8 +155,8 @@ class D2CacheSimulator(CacheSimulatorBase):
         return self.hits, self.misses
 
 
-def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy):
-    d2_simulator = D2CacheSimulator(d2_cache_size, line_size, cache_policy)
+def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy,associativity):
+    d2_simulator = D2CacheSimulator(d2_cache_size, line_size, cache_policy, associativity)
     d1_simulator = D1CacheSimulator(d1_cache_size // 2, line_size, d2_simulator,
                                     cache_policy)  # L1 is split in half between instructions and data.
 
@@ -168,7 +167,7 @@ def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, 
     l1_hits, l1_misses = d1_simulator.report_stats()
     l2_hits, l2_misses = d2_simulator.report_stats()
     print(
-        f"L1 Cache Size: {d1_cache_size // 1024} KB, L2 Cache Size: {d2_cache_size // 1024} KB, Line Size: {line_size} Bytes")
+        f"L1 Cache Size: {d1_cache_size // 1024} KB, L2 Cache Size: {d2_cache_size // 1024} KB, Line Size: {line_size} Bytes, Associativity: {associativity}")
     print(f"L1 Hits: {l1_hits}, L1 Misses: {l1_misses}, L2 Hits: {l2_hits}, L2 Misses: {l2_misses}")
     total_time = (l1_hits + l1_misses) * d1_access_time + (l1_misses) * d2_access_time + l2_misses * memory_access_time
     l1_hit_rate = l1_hits / (l1_hits + l1_misses) if (l1_hits + l1_misses) > 0 else 0
@@ -179,16 +178,18 @@ def run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, 
 
 if __name__ == '__main__':
     trace_file = './spec_benchmark/008.espresso.din'  # Assuming this file is already decompressed
-    d1_cache_sizes = [(32 * 1024, 1), (64 * 1024, 2)]  # (Size, Access Time)
+    # d1_cache_sizes = [(32 * 1024, 1), (64 * 1024, 2)]  # (Size, Access Time)
     d2_cache_sizes = [(512 * 1024, 8), (1024 * 1024, 12), (2 * 1024 * 1024, 16)]  # (Size, Access Time)
     line_sizes = [32, 64, 128]
+    associativities = [4, 2, 1]  # Different levels of set associativity
 
     # cache_policies = ["Random", "LRU", "FIFO"]
-    cache_policy = "FIFO"
+    cache_policy = "Random"
 
-    for d1_cache_size, d1_access_time in d1_cache_sizes:
-        for d2_cache_size, d2_access_time in d2_cache_sizes:
-            for line_size in line_sizes:
-                # for cache_policy in cache_policies:
-                run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy)
+    # for d1_cache_size, d1_access_time in d1_cache_sizes:
+    d1_cache_size, d1_access_time = 64 * 1024, 2
+    for d2_cache_size, d2_access_time in d2_cache_sizes:
+        for line_size in line_sizes:
+            for associativity in associativities:
+                run_simulator(d1_cache_size, d1_access_time, d2_cache_size, d2_access_time, line_size, trace_file, cache_policy,associativity)
                 print("-------------------------------------")
