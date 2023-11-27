@@ -116,11 +116,17 @@ class Simulator:
 
     def address_translate(self, v_address: int):
         self.cycle += 1
+
         if v_address in self.tlb:
             p_address = self.tlb.query(v_address).frame_number
         else:
             p_address = self.page_walk(v_address)
+            while p_address == 0:
+                print("Oops Zero p_address!")
+                p_address = self.page_walk(v_address)
             self.tlb.update(v_address, p_address)
+        print(hex(v_address), "->", hex(p_address))
+
         return p_address
 
     def simu_read_data(self, address: int, size: int = 4):
@@ -128,7 +134,13 @@ class Simulator:
         # p_address = self.address_translate(address)
         aligned_address = address_align(address, self.config.L1_cacheline_size)
         aligned_size = address - aligned_address
-        needed_addresses = address_needed(aligned_address, need_size + aligned_size, self.config.L1_cacheline_size)
+        # padding
+        padding_size = 0
+        if aligned_size % self.config.L1_cacheline_size:
+            aligned_size += aligned_address % self.config.L1_cacheline_size
+            padding_size = aligned_address % self.config.L1_cacheline_size
+
+        needed_addresses = address_needed(aligned_address, aligned_size + need_size + padding_size, self.config.L1_cacheline_size)
 
         result = b''
 
@@ -141,6 +153,8 @@ class Simulator:
                 elif cache_level == CacheLevel.L2:
                     self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
             else:
+                if address not in self.memory:
+                    self.memory.allocate_page_at_address(address)
                 result += self.memory.read_bytes(address, self.config.L1_cacheline_size)
                 self.cache.write_cache(address, result[-self.config.L1_cacheline_size:])
                 self.cycle += self.config.Memory_access + self.config.L2_cache_access + self.config.L1_cache_access
@@ -154,12 +168,18 @@ class Simulator:
         aligned_size = address - aligned_address
         data = b'\x00' * aligned_size + data
         need_size = len(data)
+        if self.config.L1_cacheline_size - need_size % self.config.L1_cacheline_size:
+            data += b'\x00' * (self.config.L1_cacheline_size - need_size % self.config.L1_cacheline_size)
+        need_size = len(data)
+        assert need_size % self.config.L1_cacheline_size == 0
 
         needed_address = address_needed(aligned_address, need_size, self.config.L1_cacheline_size)
         sliced_data = [data[i:i + self.config.L1_cacheline_size] for i in
                        range(0, len(data), self.config.L1_cacheline_size)]
 
         for idx, address in enumerate(needed_address):
+            if len(sliced_data[idx]) != 32:
+                print("Oops")
             if address in self.cache:
                 cache_level = self.cache.write_cache(address, sliced_data[idx])
                 if cache_level == CacheLevel.L1:
@@ -184,6 +204,8 @@ class Simulator:
                 self.cache.flush()
                 self.tlb.flush()
             elif instruction.op == OP.InstructionFetch:
+                if instruction.address == 4224480:
+                    print("That address")
                 self.simu_read_data(self.address_translate(instruction.address), 4)
             else:
                 pass

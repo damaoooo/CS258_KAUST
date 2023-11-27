@@ -55,7 +55,7 @@ class Memory:
             page_start = self.start_address
             for i in range(pages_needed):
                 i_th_page = page_start + i * page_size
-                self.allocate_page_at_address(i_th_page)
+                self.allocate_page_at_address(i_th_page << page_bit)
                 ret.append(i_th_page)
             return ret
         elif len(allocated_pages) == 1:

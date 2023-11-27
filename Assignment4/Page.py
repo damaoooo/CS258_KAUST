@@ -43,6 +43,7 @@ class PageTable:
         self.entries[key] = PageTableEntry(value, True)
 
     def deserialize(self, data: bytes):
+        # print(len(data), self.page_size)
         assert len(data) == self.page_size
 
         for i in range(0, 2 ** self.page_bit):
@@ -154,7 +155,7 @@ class MultiLevelPageTable:
 
     def query_l3(self, address: int) -> int:
         l3_index = page_index(address) & (2 ** self.page_levels[2] - 1)
-        if l3_index in self.L3PageTable:
+        if l3_index in self.L3PageTable and self.L3PageTable.entries[l3_index].value != 0:
             return self.L3PageTable.entries[l3_index].value
         else:
             new_page_address = self.mmu.allocate_page(1)[0]
