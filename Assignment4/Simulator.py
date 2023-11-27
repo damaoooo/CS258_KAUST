@@ -78,6 +78,15 @@ class Simulator:
 
         self.cycle = 0
 
+        self.tlb_miss = 0
+        self.tlb_access = 0
+
+        self.l1_miss = 0
+        self.l1_access = 0
+
+        self.l2_miss = 0
+        self.l2_access = 0
+
     def parse_file(self):
         instruction_list: List[Instruction] = []
 
@@ -116,16 +125,18 @@ class Simulator:
 
     def address_translate(self, v_address: int):
         self.cycle += 1
+        self.tlb_access += 1
 
         if v_address in self.tlb:
             p_address = self.tlb.query(v_address).frame_number
         else:
+            self.tlb_miss += 1
             p_address = self.page_walk(v_address)
             while p_address == 0:
-                print("Oops Zero p_address!")
+                # print("Oops Zero p_address!")
                 p_address = self.page_walk(v_address)
             self.tlb.update(v_address, p_address)
-        print(hex(v_address), "->", hex(p_address))
+        # print(hex(v_address), "->", hex(p_address))
 
         return p_address
 
@@ -150,8 +161,17 @@ class Simulator:
                 result += r_result
                 if cache_level == CacheLevel.L1:
                     self.cycle += self.config.L1_cache_access
+                    self.l1_access += 1
                 elif cache_level == CacheLevel.L2:
+                    self.l1_miss += 1
+                    self.l1_access += 1
+                    self.l2_access += 1
                     self.cycle += self.config.L2_cache_access + self.config.L1_cache_access
+                else:
+                    self.l1_access += 1
+                    self.l1_miss += 1
+                    self.l2_access += 1
+                    self.l2_miss += 1
             else:
                 if address not in self.memory:
                     self.memory.allocate_page_at_address(address)
@@ -204,11 +224,15 @@ class Simulator:
                 self.cache.flush()
                 self.tlb.flush()
             elif instruction.op == OP.InstructionFetch:
-                if instruction.address == 4224480:
-                    print("That address")
                 self.simu_read_data(self.address_translate(instruction.address), 4)
             else:
                 pass
+
+    def result(self):
+        print(f"TLB Miss Rate: {self.tlb_miss / self.tlb_access}")
+        print(f"L1 Miss Rate: {self.l1_miss / self.l1_access}")
+        print(f"L2 Miss Rate: {self.l2_miss / self.l2_access}")
+        print(f"Average Cycle: {self.cycle / len(self.instructions)}")
 
 
 if __name__ == '__main__':
@@ -217,4 +241,4 @@ if __name__ == '__main__':
     simulator = Simulator(config)
     instructions = simulator.parse_file()
     simulator.start_simulation()
-    print(len(instructions))
+    simulator.result()
