@@ -1,17 +1,9 @@
 
 
-`simple.py`` is a basic CPU system.
-```
-/root/share/gem5/build/X86/gem5.opt simple.py
 
-/root/share/gem5/build/X86/gem5.opt pagetable.py
-```
+ 
+Please refer to drawcase08.ipynb and drawcase015.ipynb for the report. We found that ./spec_benchmark/008.espresso.din only accesses three addresses. Most of it is accommodated in the L1 cache, so it is unrelated to cache size.
 
-
-
-```
-gzip -d ./Spec_Benchmark/008.espresso.din.Z
-```
 
 Arguments
 

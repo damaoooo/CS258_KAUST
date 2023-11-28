@@ -306,7 +306,7 @@ class Simulator:
 
 def test_case_1():
     config = SimulatorConfigure()
-    config.file_path = "./spec_benchmark/008.espresso.din"
+    config.file_path = "./spec_benchmark/015.doduc.din"
     total_result = {"Split": {}, "Unified": {}}
     for split, name in [(True, "Split"), (False, "Unified")]:
         for cache_line_size in [32 * Size.B, 64 * Size.B, 128 * Size.B]:
@@ -337,7 +337,7 @@ def test_case_1():
 
 def test_case_2():
     config = SimulatorConfigure()
-    config.file_path = "./spec_benchmark/008.espresso.din"
+    config.file_path = "./spec_benchmark/015.doduc.din"
     total_result = {"FIFO": {}, "LRU": {}, "Random": {}}
     for replace_algorithm, name in [(CacheReplaceAlgorithm.FIFO, "FIFO"), (CacheReplaceAlgorithm.LRU, "LRU"),
                                     (CacheReplaceAlgorithm.Random, "Random")]:
@@ -369,7 +369,7 @@ def test_case_2():
 
 def test_case_3():
     config = SimulatorConfigure()
-    config.file_path = "./spec_benchmark/008.espresso.din"
+    config.file_path = "./spec_benchmark/015.doduc.din"
     total_result = {"Direct": {}, "2-way": {}, "4-way": {}}
     for n_way, name in [(4, "4-way"), (2, "2-way"), (1, "Direct")]:
         for cache_line_size in [32 * Size.B, 64 * Size.B, 128 * Size.B]:
