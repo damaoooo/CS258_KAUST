@@ -35,6 +35,13 @@ class Device {
 };
 
 template <typename Type>
+struct Optional {
+  static_assert(std::is_pod<Type>::value, "Value type of Optional must be POD.");
+  bool is_valid = false;
+  Type val = {};
+};
+
+template <typename Type>
 class Latch : public Device {
  public:
   static_assert(std::is_pod<Type>::value, "Value type of Latch must be POD.");
@@ -49,19 +56,19 @@ class Latch : public Device {
   }
 
   void Write(const Type& val) {
-    next_val_ = val;
+    next_val_ = {true, val};
   }
 
   Type Read() {
-    if (!cur_val_.has_value()) {
+    if (!cur_val_.is_valid) {
       WARN("reading an indeterminate value.");
     }
-    return cur_val_.value();
+    return cur_val_.val;
   }
 
  private:
-  std::optional<Type> next_val_;
-  std::optional<Type> cur_val_;
+  Optional<Type> next_val_;
+  Optional<Type> cur_val_;
 };
 
 }

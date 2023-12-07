@@ -29,7 +29,7 @@ class TestDevice : public Device {
 
 int main() {
   auto dev = std::make_shared<TestDevice>();
-  // INFO("out={}", dev->dev_a->out->Read());
+  INFO("out={}", dev->dev_a->out->Read());
   dev->OnRecvClock();
   INFO("out={}", dev->dev_a->out->Read());
   INFO("out={}", dev->dev_b->out->Read());

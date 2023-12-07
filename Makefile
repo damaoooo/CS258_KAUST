@@ -5,7 +5,6 @@ HEADERS = $(wildcard *.hpp)
 TARGETS = $(SRCS:.cpp=.out)
 
 all: $(TARGETS)
-	echo $(TARGETS)
 
 %.out: %.cpp $(HEADERS)
 	${CXX} -o $@ $<
