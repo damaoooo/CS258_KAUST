@@ -77,7 +77,7 @@ class Decoder : public Device {
     return 0;
   }
 
-  void Connect(InputPtr<uint32_t> instr, InputPtr<Optional<uint64_t>> instr_addr) {
+  void Connect(InputPtr<uint32_t> instr, InputPtr<uint64_t> instr_addr) {
     in_instr = instr;
     in_instr_addr = instr_addr;
   }
@@ -86,9 +86,7 @@ class Decoder : public Device {
     Device::DoFunction();
     switch (state->Read()) {
     case ProcState::kFetch: {
-      // if (in_instr_addr->Read().is_valid) {
-        state->Write(ProcState::kDecode);
-      // }
+      state->Write(ProcState::kDecode);
       break;
     }
     case ProcState::kDecode:
@@ -98,7 +96,7 @@ class Decoder : public Device {
       state->Write(ProcState::kMemory);
       break;
     case ProcState::kMemory:
-      state->Write(ProcState::kExecute);
+      state->Write(ProcState::kWriteback);
       break;
     case ProcState::kWriteback:
       state->Write(ProcState::kFetch);
@@ -116,7 +114,7 @@ class Decoder : public Device {
 
  public:
   InputPtr<uint32_t> in_instr;
-  InputPtr<Optional<uint64_t>> in_instr_addr;
+  InputPtr<uint64_t> in_instr_addr;
   RegPtr<ProcState> state;
   WirePtr<Instr> dec_instr;
 };
