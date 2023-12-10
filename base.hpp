@@ -31,7 +31,9 @@ class Device {
   }
   
   void RegisterDevice(std::vector<std::shared_ptr<Device>>&& devs) {
-    attach_devs_ = devs;
+    for (auto& e : devs) {
+      attach_devs_.push_back(e);
+    }
   }
 
   int64_t GetClock() {
