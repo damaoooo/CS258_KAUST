@@ -24,12 +24,12 @@ int main() {
   System::Register({param, sram});
 
   System::Run(1);
-  INFO("out={}", sram->out_dat->Read());
+  INFO("in={} out={}", sram->in_param->Read().addr, sram->out_dat->Read());
 
   param_val.write_dat = {true, 5};
   param->Write(param_val);
   System::Run(1);
-  INFO("out={}", sram->out_dat->Read());
+  INFO("in={} out={}", sram->in_param->Read().write_dat.val, sram->out_dat->Read());
 
   param_val.write_dat = {true, 6};
   param->Write(param_val);

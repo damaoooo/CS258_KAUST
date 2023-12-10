@@ -11,10 +11,14 @@ namespace proj {
 
 class Adder4 : public Device {
  public:
-  Adder4(WirePtr<uint64_t> in) : Device(), in(in) {
+  Adder4() : Device() {
     out = MakeWire<uint64_t>([&](){
       return this->in->Read() + 4;
     });
+  }
+
+  void Connect(WirePtr<uint64_t> input) {
+    in = input;
   }
 
   WirePtr<uint64_t> out;
@@ -25,9 +29,7 @@ class Adder4 : public Device {
 
 class Fetcher : public Device {
  public:
-  Fetcher(InputPtr<bool> fu_en, InputPtr<Optional<uint64_t>> pc_val) :
-      Device(), in_fu_en(fu_en), in_pc_val(pc_val) {
-    
+  Fetcher() : Device() {
     reg_pc = MakeReg<uint64_t>(0);
     
     fetch_addr = MakeWire<uint64_t>([&](){
@@ -39,7 +41,8 @@ class Fetcher : public Device {
       return SramParam{fetch_addr->Read(), {false, 0}};
     });
 
-    adder4 = std::make_shared<Adder4>(fetch_addr);
+    adder4 = std::make_shared<Adder4>();
+    adder4->Connect(fetch_addr);
     itcm = std::make_shared<Sram<>>(itcm_param);
 
     out_instr_addr = MakeReg<Optional<uint64_t>>({false, 0});
@@ -53,12 +56,19 @@ class Fetcher : public Device {
     RegisterDevice({reg_pc, adder4, itcm, out_instr_addr});
   }
 
+  void Connect(InputPtr<bool> fu_en, InputPtr<Optional<uint64_t>> pc_val) {
+    in_fu_en = fu_en;
+    in_pc_val = pc_val;
+  }
+
   void DoFunction() override {
+    Device::DoFunction();
     if (in_fu_en->Read()) {
       reg_pc->Write(adder4->out->Read());
+      WARN("Go {}, fet={}", reg_pc->next_val_, fetch_addr->Read());
       out_instr_addr->Write({true, fetch_addr->Read()});
     } else {
-      reg_pc->Write(fetch_addr->Read());
+      // reg_pc->Write(fetch_addr->Read());
       out_instr_addr->Write({true, fetch_addr->Read()});
     }
   }
@@ -72,8 +82,8 @@ class Fetcher : public Device {
   RegPtr<Optional<uint64_t>> out_instr_addr;
   
  public:
-  const InputPtr<bool> in_fu_en;
-  const InputPtr<Optional<uint64_t>> in_pc_val;
+  InputPtr<bool> in_fu_en;
+  InputPtr<Optional<uint64_t>> in_pc_val;
 
   std::shared_ptr<Sram<>> itcm;
   std::shared_ptr<Adder4> adder4;

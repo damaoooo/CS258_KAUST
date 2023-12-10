@@ -10,41 +10,54 @@
 
 namespace proj {
 
+struct Regs {
+  uint64_t rd;
+  uint64_t rs;
+  uint64_t rt;
+};
+
 class RegBank : public Device {
  public:
-  RegBank(InputPtr<uint64_t> in_rd0, InputPtr<uint64_t> in_rd1,
-      InputPtr<uint64_t> in_wr, InputPtr<Optional<uint64_t>> in_wr_dat) :
-      Device(), in_rd0_(in_rd0), in_rd1_(in_rd1), in_wr_(in_wr), in_wr_dat_(in_wr_dat) {
+  RegBank() : Device() {
     
-    for (auto i = 0ll; i < 32; i++) {
-      regs_.push_back(MakeReg<uint64_t>(0));
-      RegisterDevice({regs_.back()});
+    for (auto i = 0ll; i < 33; i++) {
+      // magic guard number
+      regs.push_back(MakeReg<uint64_t>(i != 32 ? 0 : 12345678));
+      RegisterDevice({regs.back()});
     }
 
-    out_rd0 = MakeWire<uint64_t>([&](){
-      return regs_[in_rd0_->Read()]->Read();
+    out_reg_dat = MakeWire<Regs>([&](){
+      auto rid = in_reg_id->Read();
+      return Regs{
+        regs[rid.rd]->Read(),
+        regs[rid.rs]->Read(),
+        regs[rid.rt]->Read(),
+      };
     });
 
-    out_rd1 = MakeWire<uint64_t>([&](){
-      return regs_[in_rd1_->Read()]->Read();
-    });
+  }
 
+  void Connect(InputPtr<Regs> reg_id, InputPtr<Optional<uint64_t>> wr_dat) {
+    in_reg_id = reg_id;
+    in_wr_dat = wr_dat;
   }
 
   void DoFunction() override {
-    auto wr_dat = in_wr_dat_->Read();
+    Device::DoFunction();
+    auto rid = in_reg_id->Read();
+    auto wr_dat = in_wr_dat->Read();
     if (wr_dat.is_valid) {
-      regs_[in_wr_->Read()]->Write(wr_dat.val);
+      regs[rid.rd]->Write(wr_dat.val);
     }
   }
 
  public:
-  WirePtr<uint64_t> out_rd0, out_rd1;
+  WirePtr<Regs> out_reg_dat;
 
  public:
-  const InputPtr<uint64_t> in_rd0_, in_rd1_, in_wr_;
-  const InputPtr<Optional<uint64_t>> in_wr_dat_;
-  std::vector<RegPtr<uint64_t>> regs_;
+  InputPtr<Regs> in_reg_id;
+  InputPtr<Optional<uint64_t>> in_wr_dat;
+  std::vector<RegPtr<uint64_t>> regs;
 };
 
 }

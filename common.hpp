@@ -1,7 +1,9 @@
 #pragma once
 
 #include "base.hpp"
+#include "log.hpp"
 #include <cstdint>
+#include <vector>
 
 namespace proj {
 
@@ -39,8 +41,44 @@ struct Instr {
 static_assert(sizeof(Instr) == sizeof(uint32_t));
 
 enum class InstrType : uint64_t {
+  kAdd = 0,
+  kAddi = 1,
+  kSub = 2,
+  kSubi = 3,
+  kMul = 4,
+  kDiv = 5,
+  kAnd = 6,
+  kOr = 7,
+  kXor = 8,
+  kNot = 9,
+  kShftr = 10,
+  kShftri = 11,
+  kShftl = 12,
+  kShftli = 13,
+  kBr = 14,
+  kBrr = 15,
+  kBri = 16,
+  kBrnz = 17,
   kCall = 18,
-  kReturn = 19
+  kReturn = 19,
+  kBrgt = 20,
+  kLd = 21,
+  kMov = 22,
+  kMovi = 23,
+  kSt = 24,
+  kAddf = 25,
+  kSubf = 26,
+  kMulf = 27,
+  kDivf = 28,
+  kIn = 29,
+  kOut = 30,
+  kHalt = 31
+};
+
+enum class RegMapOpt : uint64_t {
+  kDirect = 0,
+  kMapToR31 = 1,
+  kDisabled = 2
 };
 
 enum class AluSrc : uint64_t {
@@ -101,6 +139,12 @@ enum class WbSrc : uint64_t {
   kAluCond = 3,
 };
 
+struct RegMapEntry {
+  RegMapOpt rd;
+  RegMapOpt rs;
+  RegMapOpt rt;
+};
+
 struct AluCtrlSig {
   AluOp alu_op;
   AluSrc alu_p0;
@@ -116,6 +160,48 @@ struct LsuCtrlSig {
 struct WbCtrlSig {
   WbSrc src;
   WbDst dst;
+};
+
+inline RegMapEntry reg_map_tab[] = {
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+
+  {RegMapOpt::kDirect, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDisabled, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+
+  {RegMapOpt::kDirect, RegMapOpt::kMapToR31, RegMapOpt::kDisabled},
+  {RegMapOpt::kDisabled, RegMapOpt::kMapToR31, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDisabled},
+
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  {RegMapOpt::kDirect, RegMapOpt::kDirect, RegMapOpt::kDirect},
+  
+  {RegMapOpt::kDisabled, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDisabled, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
+  {RegMapOpt::kDisabled, RegMapOpt::kDisabled, RegMapOpt::kDisabled},
 };
 
 inline AluCtrlSig alu_sig_tab[] = {
@@ -234,5 +320,16 @@ inline WbCtrlSig wb_sig_tab[] = {
   {WbSrc::kNone, WbDst::kNone},
   {WbSrc::kNone, WbDst::kNone},
 };
+
+inline std::vector<uint64_t> BuildItcm(std::vector<Instr>&& instrs) {
+  std::vector<uint64_t> itcm;
+  CHECK(instrs.size() % 2 == 0, "");
+  for (auto i = 0ul; i < instrs.size(); i += 2) {
+    auto& i0 = instrs[i];
+    auto& i1 = instrs[i + 1];
+    itcm.push_back(((uint64_t)i1.AsUInt32() << 32) + i0.AsUInt32());
+  }
+  return itcm;
+}
 
 }

@@ -17,15 +17,15 @@ class Device {
   Device& operator=(const Device&) = delete;
   Device& operator=(Device&&) = delete;
 
-  virtual void DoFunction() {}
+  virtual void DoFunction() {
+    for (const auto& dev : attach_devs_) {
+      dev->DoFunction();
+    }
+  }
 
   virtual void OnRecvClock() {
     for (const auto& dev : attach_devs_) {
       dev->OnRecvClock();
-    }
-    DoFunction();
-    for (const auto& dev : attach_devs_) {
-      dev->DoFunction();
     }
     clock += 1;
   }
@@ -54,6 +54,7 @@ class System {
 
   static void Run(int64_t n_clocks) {
     for (auto i = 0ll; i < n_clocks; i++) {
+      Get_().DoFunction();
       Get_().OnRecvClock();
     }
   }
@@ -103,7 +104,7 @@ class Reg : public Input<Type> {
     return cur_val_;
   }
 
- private:
+ public:
   Type next_val_;
   Type cur_val_;
 };
@@ -140,6 +141,11 @@ static RegPtr<Type> MakeReg(Type init_val) {
 template <typename Type>
 static WirePtr<Type> MakeWire(std::function<Type()> do_func) {
   return std::make_shared<Wire<Type>>(do_func);
+}
+
+template <typename Enum>
+auto AsInt(const Enum value) {
+  return static_cast<typename std::underlying_type<Enum>::type>(value);
 }
 
 }

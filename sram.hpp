@@ -28,8 +28,10 @@ class Sram : public Device {
   }
 
   void DoFunction() override {
+    Device::DoFunction();
     auto in = in_param->Read();
     auto idx = in.addr / sizeof(uint64_t);
+    // WARN("Write {}", mem[idx]);
     out_dat->Write(mem[idx]);
     if (in.write_dat.is_valid) {
       mem[idx] = in.write_dat.val;

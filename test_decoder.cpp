@@ -1,9 +1,23 @@
 #include "base.hpp"
+#include "common.hpp"
+#include "fetcher.hpp"
 #include "decoder.hpp"
+#include "mux.hpp"
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 using namespace proj;
+
+void Show(int lineno, std::shared_ptr<Fetcher> fetcher, std::shared_ptr<Decoder> decoder) {
+  INFO("{}, valid={}, addr={}, instr={}, fu_en={}",
+    lineno,
+    fetcher->out_instr_addr->Read().is_valid,
+    fetcher->out_instr_addr->Read().val,
+    fetcher->out_instr->Read(),
+    decoder->out_fu_en->Read()
+  );
+}
 
 void TestBitfield() {
   auto ins = Instr{1, 0, 0, 0, 0};
@@ -23,6 +37,38 @@ void TestBitfield() {
 }
 
 int main() {
-  TestBitfield();
-  return 0;
+  auto pc_val = MakeReg<Optional<uint64_t>>({false, 0});
+  auto fetcher = std::make_shared<Fetcher>();
+  auto decoder = std::make_shared<Decoder>();
+  fetcher->Connect(decoder->out_fu_en, pc_val);
+  decoder->Connect(fetcher->out_instr, fetcher->out_instr_addr);
+  // auto decoder = std::make_shared<Fetcher>();
+  fetcher->Load(BuildItcm({
+    {AsInt(InstrType::kAddi), 0, 0, 0, 5},
+    {AsInt(InstrType::kAddi), 1, 0, 0, 5}
+  }));
+  
+  System::Register({pc_val, fetcher, decoder});
+
+  Show(__LINE__, fetcher, decoder);
+
+  System::Run(1);
+  Show(__LINE__, fetcher, decoder);
+
+  System::Run(1);
+  Show(__LINE__, fetcher, decoder);
+
+  System::Run(1);
+  Show(__LINE__, fetcher, decoder);
+
+  System::Run(1);
+  Show(__LINE__, fetcher, decoder);
+
+  System::Run(1);
+  Show(__LINE__, fetcher, decoder);
+
+  System::Run(1);
+ 
+
+  return 0; 
 }

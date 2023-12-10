@@ -14,7 +14,8 @@ int main() {
     return 2;
   });
   auto sel = MakeReg<uint64_t>(0);
-  auto mux = std::make_shared<Mux<int64_t>>(std::vector<InputPtr<int64_t>>{in1, in2}, sel);
+  auto mux = std::make_shared<Mux<int64_t>>();
+  mux->Connect({in1, in2}, sel);
   System::Register({sel, mux});
 
   INFO("out={}", mux->out->Read());

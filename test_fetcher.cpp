@@ -19,7 +19,8 @@ using namespace proj;
 int main() {
   auto fu_en = MakeReg<bool>(false);
   auto pc_val = MakeReg<Optional<uint64_t>>({false, 0});
-  auto fetcher = std::make_shared<Fetcher>(fu_en, pc_val);
+  auto fetcher = std::make_shared<Fetcher>();
+  fetcher->Connect(fu_en, pc_val);
   fetcher->Load({
     (2ull << 32) + 1ull,
     (4ull << 32) + 3ull,
