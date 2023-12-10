@@ -5,6 +5,8 @@
 #include <mutex>
 #include <sys/time.h>
 
+#include "base.hpp"
+
 namespace omni {
 
 namespace Log {
@@ -88,15 +90,6 @@ template<typename... Args>
 void Log(std::string_view log_level, std::string_view file, std::string_view func, int line, std::string_view fmt, Args&&... args) {
   static std::mutex mutex;
   auto msg = Format(fmt, std::forward<Args>(args)...);
-  
-  timeval cur_time;
-  gettimeofday(&cur_time, NULL);
-  auto current_time = cur_time.tv_sec * 1000000ll + cur_time.tv_usec;
-  static auto start_time = current_time;
-  auto elapsed_time = current_time - start_time;
-  auto elapsed_time_sec = elapsed_time / 1000000ll;
-  auto elapsed_time_msec = elapsed_time / 1000ll % 1000ll;
-  auto elapsed_time_usec = elapsed_time % 1000ll;
 
   std::string bg_color;
   if (log_level == "FATAL") {
@@ -107,8 +100,8 @@ void Log(std::string_view log_level, std::string_view file, std::string_view fun
     bg_color = "\033[49m";
   }
 
-  auto full_msg = Format("{}{%3d}.{%03d}.{%03d} - [\033[34m{}\033[39m]({}:{})(\033[33m::{}\033[39m) {}\033[49m\n",
-    bg_color, elapsed_time_sec, elapsed_time_msec, elapsed_time_usec, log_level, file, line, func, msg);
+  auto full_msg = Format("{}{%5d} - [\033[34m{}\033[39m]({}:{})(\033[33m::{}\033[39m) {}\033[49m\n",
+    bg_color, proj::System::GetClock(), log_level, file, line, func, msg);
 
   mutex.lock();
   std::cout << full_msg;

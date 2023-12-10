@@ -1,19 +1,20 @@
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "base.hpp"
+#include "log.hpp"
 
 using namespace proj;
 
 class TestInnerDevice : public Device {
  public:
   TestInnerDevice(int64_t val) {
-    out = std::make_shared<Latch<int64_t>>();
+    out = MakeReg<int64_t>(val);
     RegisterDevice({out});
-    out->Write(val);
   }
 
-  std::shared_ptr<Latch<int64_t>> out;
+  RegPtr<int64_t> out;
 };
 
 class TestDevice : public Device {
@@ -27,18 +28,45 @@ class TestDevice : public Device {
   std::shared_ptr<TestInnerDevice> dev_a, dev_b;
 };
 
-int main() {
+void TestNestedDevice() {
   auto dev = std::make_shared<TestDevice>();
-  INFO("out={}", dev->dev_a->out->Read());
-  dev->OnRecvClock();
-  INFO("out={}", dev->dev_a->out->Read());
-  INFO("out={}", dev->dev_b->out->Read());
-  dev->OnRecvClock();
-  INFO("out={}", dev->dev_a->out->Read());
-  INFO("out={}", dev->dev_b->out->Read());
+  System::Register({dev});
+
+  INFO("a={}, b={}", dev->dev_a->out->Read(), dev->dev_b->out->Read());
+
+  System::Run(1);
+  INFO("a={}, b={}", dev->dev_a->out->Read(), dev->dev_b->out->Read());
+  
   dev->dev_a->out->Write(7);
-  INFO("out={}", dev->dev_a->out->Read());
-  dev->OnRecvClock();
-  INFO("out={}", dev->dev_a->out->Read());
+  INFO("a={}, b={}", dev->dev_a->out->Read(), dev->dev_b->out->Read());
+
+  System::Run(1);
+  INFO("a={}, b={}", dev->dev_a->out->Read(), dev->dev_b->out->Read());
+
+  System::Run(1);
+  INFO("a={}, b={}", dev->dev_a->out->Read(), dev->dev_b->out->Read());
+}
+
+void TestInput() {
+  auto reg = MakeReg<uint32_t>(0);
+  auto wire = MakeWire<uint32_t>([&](){ return reg->Read(); });
+  std::vector<InputPtr<uint32_t>> io = {reg, wire};
+  System::Register({reg, wire});
+
+  INFO("reg={}, wire={}", io[0]->Read(), io[1]->Read());
+  reg->Write(1);
+  INFO("reg={}, wire={}", io[0]->Read(), io[1]->Read());
+  System::Run(1);
+  INFO("reg={}, wire={}", io[0]->Read(), io[1]->Read());
+  System::Run(1);
+  INFO("reg={}, wire={}", io[0]->Read(), io[1]->Read());
+  reg->Write(5);
+  INFO("reg={}, wire={}", io[0]->Read(), io[1]->Read());
+  System::Run(1);
+  INFO("reg={}, wire={}", io[0]->Read(), io[1]->Read());
+}
+
+int main() {
+  TestInput();
   return 0;
 }

@@ -1,74 +1,143 @@
 #pragma once
 
-#include <initializer_list>
+#include <cstdint>
+#include <functional>
 #include <memory>
-#include <optional>
 #include <type_traits>
 #include <vector>
-
-#include "log.hpp"
 
 namespace proj {
 
 class Device {
  public:
+  Device() : clock(0) {}
+  
+  Device(const Device&) = delete;
+  Device(Device&&) = delete;
+  Device& operator=(const Device&) = delete;
+  Device& operator=(Device&&) = delete;
+
+  virtual void DoFunction() {}
+
   virtual void OnRecvClock() {
     for (const auto& dev : attach_devs_) {
       dev->OnRecvClock();
     }
-  }
-
-  virtual void DoFunction() {
+    DoFunction();
     for (const auto& dev : attach_devs_) {
       dev->DoFunction();
     }
+    clock += 1;
   }
   
-  void RegisterDevice(std::initializer_list<std::shared_ptr<Device>> devs) {
-    for (const auto& dev : devs) {
-      attach_devs_.push_back(dev);
-    }
+  void RegisterDevice(std::vector<std::shared_ptr<Device>>&& devs) {
+    attach_devs_ = devs;
+  }
+
+  int64_t GetClock() {
+    return clock;
   }
 
  private:
   std::vector<std::shared_ptr<Device>> attach_devs_;
+  int64_t clock;
+};
+
+class System {
+ public:
+
+  static void Register(std::vector<std::shared_ptr<Device>>&& devs) {
+    Get_().RegisterDevice(std::move(devs));
+  } 
+
+  static void Run(int64_t n_clocks) {
+    for (auto i = 0ll; i < n_clocks; i++) {
+      Get_().OnRecvClock();
+    }
+  }
+
+  static int64_t GetClock() {
+    return Get_().GetClock();
+  }
+ 
+ private:
+  static Device& Get_() {
+    static Device sys;
+    return sys;
+  }
+  
 };
 
 template <typename Type>
 struct Optional {
-  static_assert(std::is_pod<Type>::value, "Value type of Optional must be POD.");
   bool is_valid = false;
   Type val = {};
 };
 
 template <typename Type>
-class Latch : public Device {
+class Input : public Device {
  public:
-  static_assert(std::is_pod<Type>::value, "Value type of Latch must be POD.");
 
+  virtual Type Read() = 0;
+};
+
+template <typename Type>
+class Reg : public Input<Type> {
+ public:
+
+  Reg(Type init_val) :
+      Input<Type>(), next_val_(init_val), cur_val_(init_val) {}
+  
   void OnRecvClock() override {
     Device::OnRecvClock();
     cur_val_ = next_val_;
   }
 
-  void DoFunction() override {
-    Device::DoFunction();
+  void Write(Type val) {
+    next_val_ = val;
   }
 
-  void Write(const Type& val) {
-    next_val_ = {true, val};
-  }
-
-  Type Read() {
-    if (!cur_val_.is_valid) {
-      WARN("reading an indeterminate value.");
-    }
-    return cur_val_.val;
+  Type Read() override {
+    return cur_val_;
   }
 
  private:
-  Optional<Type> next_val_;
-  Optional<Type> cur_val_;
+  Type next_val_;
+  Type cur_val_;
 };
+
+template <typename Type>
+class Wire : public Input<Type> {
+ public:
+
+  Wire(std::function<Type()> do_func) :
+      Input<Type>(), do_function_(do_func) {}
+
+  Type Read() override {
+    return do_function_();
+  }
+
+ private:
+  const std::function<Type()> do_function_;
+};
+
+template <typename Type>
+using InputPtr = std::shared_ptr<Input<Type>>;
+
+template <typename Type>
+using RegPtr = std::shared_ptr<Reg<Type>>;
+
+template <typename Type>
+using WirePtr = std::shared_ptr<Wire<Type>>;
+
+template <typename Type>
+static RegPtr<Type> MakeReg(Type init_val) {
+  return std::make_shared<Reg<Type>>(init_val);
+}
+
+template <typename Type>
+static WirePtr<Type> MakeWire(std::function<Type()> do_func) {
+  return std::make_shared<Wire<Type>>(do_func);
+}
 
 }
