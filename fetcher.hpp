@@ -37,7 +37,7 @@ class Fetcher : public Device {
     });
 
     adder4 = std::make_shared<Adder4>();
-    itcm = std::make_shared<Sram<>>(itcm_param);
+    itcm = std::make_shared<Sram<>>();
 
     out_pc = MakeWire<uint64_t>([&](){
       return reg_pc->Read();
@@ -59,6 +59,7 @@ class Fetcher : public Device {
     in_fu_en = fu_en;
     in_pc_val = pc_val;
     adder4->Connect(reg_pc);
+    itcm->Connect(itcm_param);
   }
 
   void DoFunction() override {

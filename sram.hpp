@@ -19,12 +19,15 @@ template <size_t size = 1024>
 class Sram : public Device {
  public:
 
-  Sram(InputPtr<SramParam> SramParam) :          
-      in_param(SramParam) {
+  Sram() : Device() {
     static_assert(size % sizeof(uint64_t) == 0);
     mem.resize(size / sizeof(uint64_t), 0);
     out_dat = MakeReg<uint64_t>(0);
     RegisterDevice({out_dat});
+  }
+
+  void Connect(InputPtr<SramParam> param) {
+    in_param = param;
   }
 
   void DoFunction() override {
@@ -46,8 +49,8 @@ class Sram : public Device {
   RegPtr<uint64_t> out_dat;
 
  public:
+  InputPtr<SramParam> in_param;
   std::vector<uint64_t> mem;
-  const InputPtr<SramParam> in_param;
 };
 
 }

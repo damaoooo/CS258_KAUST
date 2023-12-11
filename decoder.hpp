@@ -51,6 +51,10 @@ class Decoder : public Device {
       return alu_sig_tab[out_dec_instr->Read().op];
     });
 
+    out_lsu_sig = MakeWire<LsuCtrlSig>([&](){
+      return lsu_sig_tab[out_dec_instr->Read().op];
+    });
+
     out_wb_sig = MakeWire<WbCtrlSig>([&](){
       return wb_sig_tab[out_dec_instr->Read().op];
     });

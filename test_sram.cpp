@@ -19,7 +19,8 @@ class Testbed : public Device {
 int main() {
   auto param_val = SramParam{0, 0, false};
   auto param = MakeReg<SramParam>(param_val);
-  auto sram = std::make_shared<Sram<>>(param);
+  auto sram = std::make_shared<Sram<>>();
+  sram->Connect(param);
   sram->Load({1, 2, 3, 4});
   System::Register({param, sram});
 
