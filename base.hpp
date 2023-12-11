@@ -36,17 +36,15 @@ class Device {
     }
   }
 
-  int64_t GetClock() {
-    return clock;
-  }
-
- private:
+ public:
   std::vector<std::shared_ptr<Device>> attach_devs_;
   int64_t clock;
 };
 
-class System {
+class System : public Device {
  public:
+
+  System() : Device(), stop(false) {}
 
   static void Register(std::vector<std::shared_ptr<Device>>&& devs) {
     Get_().RegisterDevice(std::move(devs));
@@ -59,16 +57,33 @@ class System {
     }
   }
 
-  static int64_t GetClock() {
-    return Get_().GetClock();
+  static void Reset() {
+    auto& sys = Get_();
+    sys.attach_devs_.clear();
+    sys.clock = 0;
+    sys.stop = false;
   }
- 
- private:
-  static Device& Get_() {
-    static Device sys;
-    return sys;
+
+  static int64_t GetClock() {
+    return Get_().clock;
+  }
+
+  static void Stop() {
+    Get_().stop = true;
   }
   
+  static bool IsStopped() {
+    return Get_().stop;
+  }
+  
+
+ private:
+  static System& Get_() {
+    static System sys{};
+    return sys;
+  }
+
+  bool stop;
 };
 
 template <typename Type>

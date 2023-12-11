@@ -29,11 +29,12 @@ class Lsu : public Device {
       auto op = in_lsu_sig->Read().lsu_op;
       auto lsu_en = in_lsu_en->Read();
       return SramParam{
-        op == LsuOp::kLoad && lsu_en ? lsu_addr->Read() : 0,
+        op != LsuOp::kNop && lsu_en ? lsu_addr->Read() : 0,
         {
           op == LsuOp::kStore && lsu_en,
           op == LsuOp::kStore && lsu_en ? lsu_dat->Read() : 0
         }
+        
       };
     });
 

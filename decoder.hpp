@@ -92,9 +92,13 @@ class Decoder : public Device {
       state->Write(ProcState::kDecode);
       break;
     }
-    case ProcState::kDecode:
+    case ProcState::kDecode: {
+      if (out_dec_instr->Read().op == AsInt(InstrType::kHalt)) {
+        System::Stop();
+      } 
       state->Write(ProcState::kExecute);
       break;
+    }
     case ProcState::kExecute:
       state->Write(ProcState::kMemory);
       break;
