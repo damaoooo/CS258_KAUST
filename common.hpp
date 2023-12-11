@@ -8,14 +8,14 @@
 namespace proj {
 
 template <typename FromType, typename ToType>
-struct Reinterpreter {
+struct Caster {
   union {
     FromType from;
     ToType to;
   } data;
   static ToType Cast(FromType from) {
     static_assert(sizeof(FromType) == sizeof(ToType));
-    Reinterpreter<FromType, ToType> converter;
+    Caster<FromType, ToType> converter;
     converter.data.from = from;
     return converter.data.to;
   }
@@ -29,11 +29,11 @@ struct Instr {
   uint64_t imm : 12;
 
   uint32_t AsUInt32() {
-    return Reinterpreter<Instr, uint32_t>::Cast(*this);
+    return Caster<Instr, uint32_t>::Cast(*this);
   }
 
   static Instr FromUInt32(uint32_t raw_data) {
-    return Reinterpreter<uint32_t, Instr>::Cast(raw_data);
+    return Caster<uint32_t, Instr>::Cast(raw_data);
   }
 
 } __attribute__((packed));
@@ -107,7 +107,7 @@ enum class AluOp : uint64_t {
   kLogicNot = 12,
   kShiftR = 13,
   kShiftL = 14,
-  kCmpNz = 15,
+  kCmpNeq = 15,
   kCmpGt = 16,
   kSetHigh12 = 17,
 };
@@ -225,7 +225,7 @@ inline AluCtrlSig alu_sig_tab[] = {
   {AluOp::kIntAdd, AluSrc::kRegD, AluSrc::kConst0},
   {AluOp::kIntAdd, AluSrc::kRegD, AluSrc::kPc},
   {AluOp::kIntAdd, AluSrc::kRegD, AluSrc::kImm},
-  {AluOp::kCmpNz, AluSrc::kRegS, AluSrc::kConst0},
+  {AluOp::kCmpNeq, AluSrc::kRegS, AluSrc::kConst0},
   {AluOp::kIntAdd, AluSrc::kRegD, AluSrc::kConst0},
   {AluOp::kIntAdd, AluSrc::kConst0, AluSrc::kConst0},
   {AluOp::kCmpGt, AluSrc::kRegS, AluSrc::kRegT},

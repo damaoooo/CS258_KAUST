@@ -23,7 +23,7 @@ class Decoder : public Device {
   Decoder() : Device() { 
     state = MakeReg<ProcState>(ProcState::kFetch);
 
-    dec_instr = MakeWire<Instr>([&](){
+    out_dec_instr = MakeWire<Instr>([&](){
       return Instr::FromUInt32(in_instr->Read());
     });
 
@@ -44,19 +44,19 @@ class Decoder : public Device {
     });
 
     out_reg_map = MakeWire<RegMapEntry>([&](){
-      return reg_map_tab[dec_instr->Read().op];
+      return reg_map_tab[out_dec_instr->Read().op];
     });
 
     out_alu_sig = MakeWire<AluCtrlSig>([&](){
-      return alu_sig_tab[dec_instr->Read().op];
+      return alu_sig_tab[out_dec_instr->Read().op];
     });
 
     out_wb_sig = MakeWire<WbCtrlSig>([&](){
-      return wb_sig_tab[dec_instr->Read().op];
+      return wb_sig_tab[out_dec_instr->Read().op];
     });
 
     out_reg_id = MakeWire<Regs>([&](){
-      auto dec = dec_instr->Read();
+      auto dec = out_dec_instr->Read();
       auto map = out_reg_map->Read();
       return Regs{
         MapReg(map.rd, dec.rd),
@@ -77,9 +77,8 @@ class Decoder : public Device {
     return 0;
   }
 
-  void Connect(InputPtr<uint32_t> instr, InputPtr<uint64_t> instr_addr) {
+  void Connect(InputPtr<uint32_t> instr) {
     in_instr = instr;
-    in_instr_addr = instr_addr;
   }
 
   void DoFunction() override {
@@ -111,12 +110,12 @@ class Decoder : public Device {
   WirePtr<AluCtrlSig> out_alu_sig;
   WirePtr<LsuCtrlSig> out_lsu_sig;
   WirePtr<WbCtrlSig> out_wb_sig;
+  WirePtr<Instr> out_dec_instr;
 
  public:
   InputPtr<uint32_t> in_instr;
-  InputPtr<uint64_t> in_instr_addr;
   RegPtr<ProcState> state;
-  WirePtr<Instr> dec_instr;
+  
 };
 
 }
