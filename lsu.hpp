@@ -27,11 +27,12 @@ class Lsu : public Device {
 
     dtcm_param = MakeWire<SramParam>([&](){
       auto op = in_lsu_sig->Read().lsu_op;
+      auto lsu_en = in_lsu_en->Read();
       return SramParam{
-        op == LsuOp::kLoad && in_lsu_en->Read() ? lsu_addr->Read() : 0,
+        op == LsuOp::kLoad && lsu_en ? lsu_addr->Read() : 0,
         {
-          op == LsuOp::kStore && in_lsu_en->Read(),
-          op == LsuOp::kStore && in_lsu_en->Read() ? lsu_dat->Read() : 0
+          op == LsuOp::kStore && lsu_en,
+          op == LsuOp::kStore && lsu_en ? lsu_dat->Read() : 0
         }
       };
     });
